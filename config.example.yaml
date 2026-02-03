@@ -1,0 +1,149 @@
+# RAiner Configuration
+# Copy to ~/.config/rainer/config.yaml or ./config.yaml
+
+# =============================================================================
+# LLM Provider Configuration
+# =============================================================================
+provider:
+  # Options: ollama, ollama-cloud, openrouter, openai, anthropic, google
+  #
+  # ollama: Local Ollama instance (default). For cloud models like gpt-oss:120b-cloud,
+  #         you must first run `ollama signin` to authenticate with Ollama Cloud.
+  #         This mode proxies cloud requests through your local Ollama instance.
+  #
+  # ollama-cloud: Direct API access to ollama.com (no local Ollama needed).
+  #               Requires OLLAMA_API_KEY environment variable.
+  #               Use model names without "-cloud" suffix (e.g., gpt-oss:120b)
+  #
+  # openrouter: OpenRouter API for access to many models (requires OPENROUTER_API_KEY)
+  #
+  # openai: OpenAI API (requires OPENAI_API_KEY)
+  #
+  # anthropic: Anthropic API (requires ANTHROPIC_API_KEY)
+  #
+  # google: Google Gemini API (requires GOOGLE_API_KEY)
+  #
+  name: ollama
+
+  # Model to use (format depends on provider)
+  #
+  # For ollama (local):
+  #   - Local models: qwen2.5:14b, llama3:8b, mistral:7b, etc.
+  #   - Cloud models (via local relay): gpt-oss:120b-cloud, kimi-k2-thinking:cloud
+  #     Note: Requires `ollama signin` first!
+  #
+  # For ollama-cloud (direct API):
+  #   - Cloud models: gpt-oss:120b, kimi-k2-thinking (no "-cloud" suffix)
+  #
+  # For openrouter:
+  #   - Use OpenRouter model IDs: qwen/qwen3-14b, anthropic/claude-3-sonnet, etc.
+  #
+  # For openai:
+  #   - Use OpenAI model names: gpt-4o, gpt-4-turbo, etc.
+  #
+  model: qwen2.5:14b
+
+  # Provider-specific settings
+  ollama:
+    base_url: http://localhost:11434
+
+  ollama-cloud:
+    base_url: https://ollama.com
+    # api_key: set via OLLAMA_API_KEY env var
+
+  openrouter:
+    base_url: https://openrouter.ai/api/v1
+    # api_key: set via OPENROUTER_API_KEY env var
+
+  openai:
+    # api_key: set via OPENAI_API_KEY env var
+    model: gpt-4o
+
+  anthropic:
+    # api_key: set via ANTHROPIC_API_KEY env var
+    model: claude-sonnet-4-20250514
+
+  google:
+    # api_key: set via GOOGLE_API_KEY env var
+    model: gemini-2.0-flash
+
+# =============================================================================
+# Database Paths
+# =============================================================================
+data:
+  # Path to DuckDB file with paper metadata
+  duckdb_path: ~/Dropbox/Github Data/cite-hustle/DB/articles.duckdb
+
+  # Path to ChromaDB directory with embeddings
+  chroma_path: ~/Dropbox/Github Data/cite-hustle/DB/chroma
+
+  # Collection name in ChromaDB
+  chroma_collection: paper_abstracts
+
+  # Sessions directory for persistence
+  sessions_path: ~/.local/share/rainer/sessions
+
+# =============================================================================
+# Embedding Model
+# =============================================================================
+embeddings:
+  # Must match what you used to create ChromaDB embeddings
+  model: all-MiniLM-L6-v2
+
+# =============================================================================
+# Search Settings
+# =============================================================================
+search:
+  # Number of results to return from vector search
+  top_k: 10
+
+  # Minimum similarity threshold (0-1)
+  min_similarity: 0.3
+
+# =============================================================================
+# Mode Defaults
+# =============================================================================
+modes:
+  # Student feedback mode
+  feedback:
+    citation_style: inline # inline citations with reference list
+    output_format: markdown
+
+  # Writing assistance mode
+  writing:
+    citation_style: quarto # @author2020 style
+    bibtex_output: true # also generate bibtex entries
+    output_format: markdown
+
+  # Review reports mode
+  review:
+    citation_style: inline
+    output_format: markdown
+
+  # Quick literature search
+  search:
+    citation_style: bibtex # just bibtex entries
+    output_format: markdown
+
+# =============================================================================
+# Output Settings
+# =============================================================================
+output:
+  # Default output directory for generated files
+  directory: ./output
+
+  # Include paper DOI links
+  include_doi: true
+
+  # Include SSRN links
+  include_ssrn: true
+
+# =============================================================================
+# Chunking (for large documents)
+# =============================================================================
+chunking:
+  # Maximum tokens per chunk for processing large documents
+  max_chunk_tokens: 2000
+
+  # Overlap between chunks
+  overlap_tokens: 200
