@@ -6,6 +6,8 @@ from typing import Any
 
 # Disable ChromaDB telemetry before importing chromadb
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
+os.environ["CHROMA_TELEMETRY"] = "False"
+os.environ["POSTHOG_DISABLED"] = "True"
 
 from .config import get_config
 from .papers import Paper, PaperDB

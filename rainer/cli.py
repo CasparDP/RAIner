@@ -159,6 +159,12 @@ def load_file(filepath: str) -> tuple[str | None, dict | None]:
     """
     from .pdf import parse_document, is_docling_available
 
+    # Strip surrounding quotes (single or double) from the filepath
+    filepath = filepath.strip()
+    if (filepath.startswith("'") and filepath.endswith("'")) or \
+       (filepath.startswith('"') and filepath.endswith('"')):
+        filepath = filepath[1:-1]
+
     path = Path(filepath).expanduser()
     if not path.exists():
         console.print(f"[red]File not found: {filepath}[/red]")
