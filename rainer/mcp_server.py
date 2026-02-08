@@ -11,7 +11,7 @@ from enum import Enum
 from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
 from .citations import CitationFormatter, format_bibtex, format_inline, format_quarto
 from .config import get_config
@@ -50,6 +50,14 @@ class ResponseFormat(str, Enum):
 
     MARKDOWN = "markdown"
     JSON = "json"
+
+
+class CitationStyle(str, Enum):
+    """Citation formatting style."""
+
+    BIBTEX = "bibtex"
+    INLINE = "inline"
+    QUARTO = "quarto"
 
 
 def paper_to_dict(paper: Paper) -> dict:
@@ -110,180 +118,6 @@ def format_papers_response(
     return "\n".join(lines)
 
 
-# --- Input Models ---
-
-
-class SearchPapersInput(BaseModel):
-    """Input for keyword/fulltext paper search."""
-
-    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
-
-    query: str = Field(
-        ...,
-        description="Search query - searches titles, authors, and abstracts",
-        min_length=1,
-        max_length=500,
-    )
-    limit: int = Field(
-        default=10,
-        description="Maximum number of results to return",
-        ge=1,
-        le=50,
-    )
-    response_format: ResponseFormat = Field(
-        default=ResponseFormat.MARKDOWN,
-        description="Output format: 'markdown' for readable text, 'json' for structured data",
-    )
-
-
-class SemanticSearchInput(BaseModel):
-    """Input for vector similarity search."""
-
-    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
-
-    query: str = Field(
-        ...,
-        description="Natural language query describing the research topic or concept",
-        min_length=1,
-        max_length=1000,
-    )
-    limit: int = Field(
-        default=10,
-        description="Maximum number of results to return",
-        ge=1,
-        le=50,
-    )
-    min_similarity: float = Field(
-        default=0.3,
-        description="Minimum similarity threshold (0-1). Higher = more relevant but fewer results",
-        ge=0.0,
-        le=1.0,
-    )
-    year_min: Optional[int] = Field(
-        default=None,
-        description="Only include papers from this year or later",
-        ge=1900,
-        le=2100,
-    )
-    year_max: Optional[int] = Field(
-        default=None,
-        description="Only include papers from this year or earlier",
-        ge=1900,
-        le=2100,
-    )
-    response_format: ResponseFormat = Field(
-        default=ResponseFormat.MARKDOWN,
-        description="Output format: 'markdown' for readable text, 'json' for structured data",
-    )
-
-
-class GetPaperInput(BaseModel):
-    """Input for retrieving a paper by DOI."""
-
-    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
-
-    doi: str = Field(
-        ...,
-        description="DOI of the paper to retrieve (e.g., '10.1111/jofi.12345')",
-        min_length=1,
-    )
-    response_format: ResponseFormat = Field(
-        default=ResponseFormat.MARKDOWN,
-        description="Output format: 'markdown' for readable text, 'json' for structured data",
-    )
-
-
-class SearchByAuthorInput(BaseModel):
-    """Input for searching papers by author name."""
-
-    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
-
-    author: str = Field(
-        ...,
-        description="Author name or partial name to search for",
-        min_length=1,
-        max_length=200,
-    )
-    limit: int = Field(
-        default=20,
-        description="Maximum number of results to return",
-        ge=1,
-        le=100,
-    )
-    response_format: ResponseFormat = Field(
-        default=ResponseFormat.MARKDOWN,
-        description="Output format: 'markdown' for readable text, 'json' for structured data",
-    )
-
-
-class SearchByJournalInput(BaseModel):
-    """Input for searching papers by journal name."""
-
-    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
-
-    journal: str = Field(
-        ...,
-        description="Journal name or partial name to search for",
-        min_length=1,
-        max_length=200,
-    )
-    limit: int = Field(
-        default=50,
-        description="Maximum number of results to return",
-        ge=1,
-        le=100,
-    )
-    response_format: ResponseFormat = Field(
-        default=ResponseFormat.MARKDOWN,
-        description="Output format: 'markdown' for readable text, 'json' for structured data",
-    )
-
-
-class CitationStyle(str, Enum):
-    """Citation formatting style."""
-
-    BIBTEX = "bibtex"
-    INLINE = "inline"
-    QUARTO = "quarto"
-
-
-class FormatCitationInput(BaseModel):
-    """Input for formatting a paper citation."""
-
-    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
-
-    doi: str = Field(
-        ...,
-        description="DOI of the paper to cite",
-        min_length=1,
-    )
-    style: CitationStyle = Field(
-        default=CitationStyle.BIBTEX,
-        description="Citation style: 'bibtex' for BibTeX entry, 'inline' for (Author, Year), 'quarto' for @authorYear",
-    )
-
-
-class FormatMultipleCitationsInput(BaseModel):
-    """Input for formatting multiple paper citations."""
-
-    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
-
-    dois: list[str] = Field(
-        ...,
-        description="List of DOIs to cite",
-        min_length=1,
-        max_length=50,
-    )
-    style: CitationStyle = Field(
-        default=CitationStyle.BIBTEX,
-        description="Citation style: 'bibtex' for BibTeX entries, 'inline' for (Author, Year), 'quarto' for @authorYear",
-    )
-    include_reference_list: bool = Field(
-        default=True,
-        description="Include formatted reference list (for inline/quarto styles)",
-    )
-
-
 # --- Tools ---
 
 
@@ -297,21 +131,27 @@ class FormatMultipleCitationsInput(BaseModel):
         "openWorldHint": False,
     },
 )
-async def search_papers(params: SearchPapersInput) -> str:
+async def search_papers(
+    query: str = Field(
+        description="Search query - searches titles, authors, and abstracts",
+    ),
+    limit: int = Field(
+        default=10,
+        description="Maximum number of results to return (1-50)",
+    ),
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' for readable text, 'json' for structured data",
+    ),
+) -> str:
     """Search papers by keyword in titles, authors, and content.
 
     Uses DuckDB full-text search when available, falls back to LIKE search.
     Good for finding papers when you know specific terms, author names, or topics.
-
-    Args:
-        params: Search parameters including query, limit, and response format.
-
-    Returns:
-        Formatted list of matching papers with metadata.
     """
     db = get_paper_db()
-    papers = db.fulltext_search(params.query, limit=params.limit)
-    return format_papers_response(papers, params.response_format)
+    papers = db.fulltext_search(query, limit=limit)
+    return format_papers_response(papers, response_format)
 
 
 @mcp.tool(
@@ -324,7 +164,31 @@ async def search_papers(params: SearchPapersInput) -> str:
         "openWorldHint": False,
     },
 )
-async def semantic_search(params: SemanticSearchInput) -> str:
+async def semantic_search(
+    query: str = Field(
+        description="Natural language query describing the research topic or concept",
+    ),
+    limit: int = Field(
+        default=10,
+        description="Maximum number of results to return (1-50)",
+    ),
+    min_similarity: float = Field(
+        default=0.3,
+        description="Minimum similarity threshold (0-1). Higher = more relevant but fewer results",
+    ),
+    year_min: Optional[int] = Field(
+        default=None,
+        description="Only include papers from this year or later",
+    ),
+    year_max: Optional[int] = Field(
+        default=None,
+        description="Only include papers from this year or earlier",
+    ),
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' for readable text, 'json' for structured data",
+    ),
+) -> str:
     """Search papers using semantic similarity to find conceptually related work.
 
     Uses vector embeddings of paper abstracts to find papers that are semantically
@@ -332,34 +196,28 @@ async def semantic_search(params: SemanticSearchInput) -> str:
     Ideal for literature review and finding related research.
 
     Falls back to keyword search if vector database is not available.
-
-    Args:
-        params: Search parameters including natural language query and filters.
-
-    Returns:
-        Formatted list of semantically similar papers with relevance scores.
     """
     search = get_paper_search()
 
     if not search.is_available:
         # Fall back to keyword search with a note
         db = get_paper_db()
-        papers = db.fulltext_search(params.query, limit=params.limit)
-        result = format_papers_response(papers, params.response_format, include_abstracts=True)
+        papers = db.fulltext_search(query, limit=limit)
+        result = format_papers_response(papers, response_format, include_abstracts=True)
         return f"*Note: Vector search unavailable ({search.init_error}). Using keyword search.*\n\n{result}"
 
     results = search.search(
-        query=params.query,
-        top_k=params.limit,
-        min_similarity=params.min_similarity,
-        year_min=params.year_min,
-        year_max=params.year_max,
+        query=query,
+        top_k=limit,
+        min_similarity=min_similarity,
+        year_min=year_min,
+        year_max=year_max,
     )
 
     if not results:
         return "No papers found matching your query."
 
-    if params.response_format == ResponseFormat.JSON:
+    if response_format == ResponseFormat.JSON:
         data = [
             {**paper_to_dict(r.paper), "similarity_score": round(r.score, 3)}
             for r in results
@@ -385,22 +243,23 @@ async def semantic_search(params: SemanticSearchInput) -> str:
         "openWorldHint": False,
     },
 )
-async def get_paper(params: GetPaperInput) -> str:
-    """Retrieve full details of a specific paper by its DOI.
-
-    Args:
-        params: DOI and response format.
-
-    Returns:
-        Full paper metadata including title, authors, abstract, and links.
-    """
+async def get_paper(
+    doi: str = Field(
+        description="DOI of the paper to retrieve (e.g., '10.1111/jofi.12345')",
+    ),
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' for readable text, 'json' for structured data",
+    ),
+) -> str:
+    """Retrieve full details of a specific paper by its DOI."""
     db = get_paper_db()
-    paper = db.get_paper(params.doi)
+    paper = db.get_paper(doi)
 
     if paper is None:
-        return f"Paper not found with DOI: {params.doi}"
+        return f"Paper not found with DOI: {doi}"
 
-    if params.response_format == ResponseFormat.JSON:
+    if response_format == ResponseFormat.JSON:
         return json.dumps(paper_to_dict(paper), indent=2)
 
     return format_paper_markdown(paper, include_abstract=True)
@@ -416,20 +275,26 @@ async def get_paper(params: GetPaperInput) -> str:
         "openWorldHint": False,
     },
 )
-async def search_by_author(params: SearchByAuthorInput) -> str:
+async def search_by_author(
+    author: str = Field(
+        description="Author name or partial name to search for",
+    ),
+    limit: int = Field(
+        default=20,
+        description="Maximum number of results to return (1-100)",
+    ),
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' for readable text, 'json' for structured data",
+    ),
+) -> str:
     """Find papers by a specific author.
 
     Searches author names (partial matches supported). Results sorted by year descending.
-
-    Args:
-        params: Author name, limit, and response format.
-
-    Returns:
-        List of papers by the author.
     """
     db = get_paper_db()
-    papers = db.search_by_author(params.author, limit=params.limit)
-    return format_papers_response(papers, params.response_format, include_abstracts=False)
+    papers = db.search_by_author(author, limit=limit)
+    return format_papers_response(papers, response_format, include_abstracts=False)
 
 
 @mcp.tool(
@@ -442,20 +307,26 @@ async def search_by_author(params: SearchByAuthorInput) -> str:
         "openWorldHint": False,
     },
 )
-async def search_by_journal(params: SearchByJournalInput) -> str:
+async def search_by_journal(
+    journal: str = Field(
+        description="Journal name or partial name to search for",
+    ),
+    limit: int = Field(
+        default=50,
+        description="Maximum number of results to return (1-100)",
+    ),
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' for readable text, 'json' for structured data",
+    ),
+) -> str:
     """Find papers published in a specific journal.
 
     Searches journal names (partial matches supported). Results sorted by year descending.
-
-    Args:
-        params: Journal name, limit, and response format.
-
-    Returns:
-        List of papers from the journal.
     """
     db = get_paper_db()
-    papers = db.search_by_journal(params.journal, limit=params.limit)
-    return format_papers_response(papers, params.response_format, include_abstracts=False)
+    papers = db.search_by_journal(journal, limit=limit)
+    return format_papers_response(papers, response_format, include_abstracts=False)
 
 
 @mcp.tool(
@@ -468,24 +339,25 @@ async def search_by_journal(params: SearchByJournalInput) -> str:
         "openWorldHint": False,
     },
 )
-async def format_citation(params: FormatCitationInput) -> str:
-    """Format a paper citation in the specified style.
-
-    Args:
-        params: DOI and citation style (bibtex, inline, quarto).
-
-    Returns:
-        Formatted citation string.
-    """
+async def format_citation(
+    doi: str = Field(
+        description="DOI of the paper to cite",
+    ),
+    style: CitationStyle = Field(
+        default=CitationStyle.BIBTEX,
+        description="Citation style: 'bibtex' for BibTeX entry, 'inline' for (Author, Year), 'quarto' for @authorYear",
+    ),
+) -> str:
+    """Format a paper citation in the specified style."""
     db = get_paper_db()
-    paper = db.get_paper(params.doi)
+    paper = db.get_paper(doi)
 
     if paper is None:
-        return f"Paper not found with DOI: {params.doi}"
+        return f"Paper not found with DOI: {doi}"
 
-    if params.style == CitationStyle.BIBTEX:
+    if style == CitationStyle.BIBTEX:
         return format_bibtex(paper)
-    elif params.style == CitationStyle.QUARTO:
+    elif style == CitationStyle.QUARTO:
         return format_quarto(paper)
     else:  # inline
         return format_inline(paper)
@@ -501,27 +373,33 @@ async def format_citation(params: FormatCitationInput) -> str:
         "openWorldHint": False,
     },
 )
-async def format_citations(params: FormatMultipleCitationsInput) -> str:
+async def format_citations(
+    dois: list[str] = Field(
+        description="List of DOIs to cite",
+    ),
+    style: CitationStyle = Field(
+        default=CitationStyle.BIBTEX,
+        description="Citation style: 'bibtex' for BibTeX entries, 'inline' for (Author, Year), 'quarto' for @authorYear",
+    ),
+    include_reference_list: bool = Field(
+        default=True,
+        description="Include formatted reference list (for inline/quarto styles)",
+    ),
+) -> str:
     """Format citations for multiple papers.
 
     Useful for generating a bibliography or reference list for a document.
-
-    Args:
-        params: List of DOIs, citation style, and whether to include reference list.
-
-    Returns:
-        Formatted citations and optional reference list.
     """
     db = get_paper_db()
     formatter = CitationFormatter(
-        style=params.style.value,  # type: ignore
-        include_reference_list=params.include_reference_list,
+        style=style.value,  # type: ignore
+        include_reference_list=include_reference_list,
     )
 
     found_papers = []
     not_found = []
 
-    for doi in params.dois:
+    for doi in dois:
         paper = db.get_paper(doi)
         if paper:
             formatter.cite(paper)
@@ -534,7 +412,7 @@ async def format_citations(params: FormatMultipleCitationsInput) -> str:
 
     output_parts = []
 
-    if params.style == CitationStyle.BIBTEX:
+    if style == CitationStyle.BIBTEX:
         output_parts.append("## BibTeX Entries\n")
         output_parts.append("```bibtex")
         output_parts.append(formatter.get_bibtex())
@@ -543,15 +421,15 @@ async def format_citations(params: FormatMultipleCitationsInput) -> str:
         # For inline/quarto, show the in-text citations
         output_parts.append("## In-text Citations\n")
         for paper in found_papers:
-            if params.style == CitationStyle.QUARTO:
+            if style == CitationStyle.QUARTO:
                 output_parts.append(f"- {paper.title}: `{format_quarto(paper)}`")
             else:
                 output_parts.append(f"- {paper.title}: {format_inline(paper)}")
 
-        if params.include_reference_list:
+        if include_reference_list:
             output_parts.append("\n" + formatter.get_reference_list())
 
-        if params.style == CitationStyle.QUARTO:
+        if style == CitationStyle.QUARTO:
             output_parts.append("\n## BibTeX (for Quarto)\n")
             output_parts.append("```bibtex")
             output_parts.append(formatter.get_bibtex())

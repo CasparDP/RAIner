@@ -61,6 +61,10 @@ sessions/
 # Output
 output/
 
+# Meetings
+01-meeting/
+scrap/
+
 # OS
 .DS_Store
 Thumbs.db
