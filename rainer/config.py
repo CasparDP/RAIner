@@ -83,7 +83,7 @@ class EmbeddingsConfig(BaseModel):
 
 
 class SearchConfig(BaseModel):
-    top_k: int = 10
+    top_k: int = 20
     min_similarity: float = 0.3
 
 
@@ -98,19 +98,28 @@ class ModesConfig(BaseModel):
     writing: ModeConfig = Field(
         default_factory=lambda: ModeConfig(citation_style="quarto", bibtex_output=True)
     )
-    review: ModeConfig = Field(default_factory=lambda: ModeConfig(citation_style="inline"))
+    review: ModeConfig = Field(default_factory=lambda: ModeConfig(citation_style="bibtex"))
     search: ModeConfig = Field(default_factory=lambda: ModeConfig(citation_style="bibtex"))
 
 
 class OutputConfig(BaseModel):
     directory: str = "./output"
+    prompt_dir: str | None = None
     include_doi: bool = True
     include_ssrn: bool = True
+    default_extension: str = ".qmd"
 
 
 class ChunkingConfig(BaseModel):
     max_chunk_tokens: int = 2000
     overlap_tokens: int = 200
+
+
+class DraftContextConfig(BaseModel):
+    # reduce to 4000 for small models
+    max_context_tokens: int = 8000
+    max_section_chars: int = 2000
+    include_full_draft: bool = False
 
 
 class Config(BaseModel):
@@ -121,6 +130,7 @@ class Config(BaseModel):
     modes: ModesConfig = Field(default_factory=ModesConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
     chunking: ChunkingConfig = Field(default_factory=ChunkingConfig)
+    draft_context: DraftContextConfig = Field(default_factory=DraftContextConfig)
 
 
 def find_config_file() -> Path | None:

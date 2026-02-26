@@ -7,6 +7,7 @@ RAiner is an open-source academic research assistant that runs locally. It uses:
 - **ChromaDB** for semantic vector search over abstracts
 - **Multiple LLM providers**: Ollama, OpenAI, Anthropic, Google Gemini, OpenRouter
 - **Sentence Transformers** for embeddings (all-MiniLM-L6-v2)
+- **Quarto-compatible output**: generates `.qmd` files with YAML frontmatter (default `format: pdf`)
 
 ## Project Structure
 
@@ -26,7 +27,7 @@ RAiner/
     ├── search.py           # ChromaDB vector search
     ├── pdf.py              # PDF/document parsing via docling (optional)
     ├── citations.py        # BibTeX/inline/Quarto citation formatting
-    ├── output.py           # Markdown file generation
+    ├── output.py           # Quarto/Markdown (.qmd) file generation with YAML frontmatter
     ├── chunking.py         # Large document splitting
     ├── embed.py            # Script to create ChromaDB embeddings
     └── data/
@@ -107,7 +108,12 @@ The DuckDB database (`articles.duckdb`) has these tables:
 
 ### `cli.py` - Terminal Interface
 - Uses `rich` for formatting, `prompt_toolkit` for input
-- Commands: `/help`, `/mode`, `/provider`, `/model`, `/sessions`, `/resume`, `/load`, `/loadpaper`, `/papers`, `/save`, `/refs`, `/bibtex`, `/stats`, `/clear`, `/quit`
+- Workflow-oriented commands:
+  - `/load <file>`: load a draft/document (PDF, DOCX, MD, TXT) into the base session
+  - `/review [extra prompt]`: run a one-shot structured reviewer-style report on the loaded draft (creates a dedicated `review` session, copies draft context)
+  - `/feedback [extra prompt]`: run a one-shot structured student-facing feedback report on the loaded draft (creates a dedicated `feedback` session, copies draft context)
+  - Normal chat: ad-hoc questions and literature search using the current base session
+- Additional commands: `/help`, `/mode`, `/provider`, `/model`, `/sessions`, `/resume`, `/loadpaper`, `/papers`, `/save`, `/refs`, `/bibtex`, `/stats`, `/info`, `/clear`, `/quit`
 - CLI flags: `-p/--provider`, `--model`, `-m/--mode`, `-c/--config`, `-r/--resume`, `-l/--load`
 
 ### `pdf.py` - Document Parsing (Optional)
@@ -221,14 +227,14 @@ Update `eur_databases.json` when EUR database access changes. Check [EDSC news](
 
 | Mode | Citation Style | Use Case |
 |------|---------------|----------|
-| feedback | inline | Student draft review with data feasibility audit |
-| writing | quarto (@key) | Paper writing assistance |
-| review | inline | Reviewer report writing |
-| search | bibtex | Literature discovery |
+| feedback | inline | Student draft review with data feasibility audit (used by `/feedback` workflow) |
+| writing | quarto (@key) | Paper writing assistance (used when writing with loaded reference papers) |
+| review | inline | Reviewer report writing (used by `/review` workflow) |
+| search | bibtex | Literature discovery (default base mode when starting RAiner) |
 
 ### Feedback Mode Output Format
 
-In feedback mode, the agent produces a structured report:
+In feedback mode (invoked via `/feedback` on a loaded draft), the agent produces a structured report:
 
 ```
 A. Executive summary (max 6 bullets; include feasibility verdict)
@@ -252,6 +258,13 @@ I. Clarifying questions
 - ChromaDB uses cosine similarity space
 - Session files are JSON for easy debugging
 - Embedding model must match between `embed.py` and `search.py`
+- Output:
+  - Default output extension is configurable via `output.default_extension` (defaults to `.qmd`)
+  - YAML frontmatter includes a Quarto `format:` block (default `pdf: default`)
+  - Feedback reports include `draft_title` and (heuristically parsed) `student_name` fields based on the loaded draft name (e.g. `"Ashkan Issazadeh – Draft proposal – v1 – 23 feb"` → `student_name="Ashkan Issazadeh"`, `draft_title="Draft proposal"`)
+- Workflows:
+  - Base session typically starts in `search` mode; you load a draft once with `/load`
+  - `/review` and `/feedback` create dedicated sessions with the appropriate mode and copied draft context, without needing to restart RAiner
 
 ## Common Issues
 

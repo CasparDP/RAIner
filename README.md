@@ -2,6 +2,8 @@
 
 An open-source research assistant for academic work. Built to run locally with Ollama or cloud providers.
 
+RAiner generates outputs as Quarto-compatible Markdown files (`.qmd`) by default, so you can directly render them with [Quarto](https://quarto.org). You can still override the filename/extension manually when saving.
+
 ## Features
 
 - **Multiple modes**: Student feedback, writing assistance, review reports, literature search
@@ -81,77 +83,85 @@ This installs [docling](https://github.com/docling-project/docling) for parsing 
 poetry run rainer
 ```
 
+By default, RAiner saves reports as Quarto `.qmd` files, which are standard Markdown plus optional Quarto metadata. You can change the default extension in your config or pass a custom filename to `/save`.
+
 ## Usage
 
 ### Start the assistant
 
 ```bash
-# Interactive mode selection
+# Start RAiner
 rainer
 
-# Start in specific mode
-rainer --mode feedback
+# (Optional) start in a specific base mode for the whole session
+rainer --mode search
 
 # Resume a session
 rainer --resume abc123
 
-# Load a document
-rainer --load draft.md --mode feedback
+# Load a document directly at startup
+rainer --load draft.pdf
 ```
 
 ### Commands
 
 | Command | Description |
 |---------|-------------|
-| `/help` | Show help |
-| `/mode <mode>` | Switch mode (feedback, writing, review, search) |
+| `/help` | Show this help |
+| `/provider [name] [model]` | Show/switch LLM provider |
+| `/model <name>` | Switch model |
 | `/sessions` | List recent sessions |
 | `/resume <id>` | Resume a previous session |
-| `/load <file>` | Load a draft for feedback/review (supports PDF) |
-| `/loadpaper <file>` | Load a reference paper PDF for writing mode |
+| `/load <file>` | Load a draft/document (PDF, DOCX, MD, TXT) |
+| `/loadpaper <file>` | Load a reference paper (PDF) for writing mode |
+| `/review [extra prompt]` | Run a structured review workflow on the loaded draft |
+| `/feedback [extra prompt]` | Run a structured student feedback report on the loaded draft |
 | `/papers` | Show loaded reference papers |
-| `/save [filename]` | Save conversation to markdown |
+| `/save [filename]` | Save conversation to a Quarto/Markdown file (default `.qmd`) |
 | `/refs` | Show current reference list |
 | `/bibtex` | Show BibTeX entries |
 | `/stats` | Show database statistics |
-| `/clear` | Start new session |
+| `/info` | Show current session and draft status |
+| `/clear` | Start new base session |
 | `/quit` | Exit |
 
-### Modes
+### Workflows
 
-#### Student Feedback (`feedback`)
-Review student drafts with comprehensive feedback including:
+#### Student Feedback workflow (`/feedback`)
+After loading a draft with `/load`, run a structured student-facing feedback report:
 - Research question and hypothesis assessment
 - Data feasibility audit (verifies EUR database access)
 - Literature gap identification with tool-backed citations
 - Structured revision checklist
 
-The agent automatically verifies whether required databases (WRDS, Compustat, Bloomberg, etc.) are available at EUR.
+The agent automatically verifies whether required databases (WRDS, Compustat, Bloomberg, etc.) are available at EUR using the built-in EUR tools, and produces a structured report (executive summary, feasibility audit, revision checklist, etc.).
 
 ```
-[feedback] > Here's a draft: "Market microstructure affects price discovery..."
+/load "Ashkan Issazadeh – Draft proposal – v1 – 23 feb.pdf"
+/feedback Focus on feasibility and clarity for a master thesis
 ```
 
-#### Writing Assistance (`writing`)
-Help write papers with proper Quarto-style citations. Load reference papers as PDFs to cite from.
+#### Writing Assistance (normal chat + `/loadpaper`)
+Help write papers with proper Quarto-style citations. Load reference papers as PDFs to cite from, then ask the model to draft sections:
 
 ```
-[writing] > /loadpaper ~/papers/smith2020.pdf
-[writing] > Help me write an introduction about high-frequency trading, citing the loaded paper
+/loadpaper ~/papers/smith2020.pdf
+Help me write an introduction about high-frequency trading, citing the loaded paper
 ```
 
-#### Review Reports (`review`)
-Write reviewer reports, check literature coverage.
+#### Review Reports workflow (`/review`)
+Write reviewer reports and check literature coverage on the loaded draft:
 
 ```
-[review] > Review this manuscript for missing key references...
+/load manuscript.pdf
+/review Focus on major issues and missing key references
 ```
 
-#### Literature Search (`search`)
-Find papers, get BibTeX entries.
+#### Literature Search (normal chat in base session)
+Use the base session (default `search` mode) to find papers and get BibTeX entries:
 
 ```
-[search] > Find papers about market maker inventory management after 2015
+Find papers about market maker inventory management after 2015
 ```
 
 ## Output Formats
@@ -212,7 +222,7 @@ RAiner/
     ├── papers.py           # DuckDB interface
     ├── search.py           # ChromaDB vector search
     ├── citations.py        # Citation formatting
-    ├── output.py           # Markdown output
+    ├── output.py           # Quarto/Markdown (.qmd) output
     ├── chunking.py         # Document chunking
     ├── embed.py            # Embedding creation script
     └── data/

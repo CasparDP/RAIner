@@ -166,10 +166,13 @@ class ConversationMemory:
         role: Literal["user", "assistant", "system", "tool"],
         content: str,
         tool_name: str | None = None,
+        tool_call_id: str | None = None,
         **metadata: Any,
     ) -> None:
         """Add a message and auto-save."""
-        self.session.add_message(role, content, tool_name=tool_name, **metadata)
+        self.session.add_message(
+            role, content, tool_name=tool_name, tool_call_id=tool_call_id, **metadata
+        )
         self.manager.save(self.session)
 
     def get_messages(self) -> list[dict[str, Any]]:

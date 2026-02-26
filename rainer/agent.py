@@ -1,5 +1,7 @@
 """Core research assistant agent with tool calling."""
 
+from __future__ import annotations
+
 import json
 import re
 import time
@@ -10,14 +12,15 @@ import anthropic as anthropic_sdk
 import ollama
 import openai as openai_sdk
 from google import genai
-from google.genai import types as google_types
 from pydantic import BaseModel
 
-from .chunking import chunk_text
+from .chunking import chunk_text, estimate_tokens, extract_key_sections
 from .citations import CitationFormatter
 from .config import get_config
 from .memory import ConversationMemory
-from .papers import Paper, PaperDB
+from .papers import PaperDB
+from .prompts import resolve_prompt
+from .providers import create_provider_adapter
 from .search import PaperSearch
 
 
@@ -43,7 +46,10 @@ class ResearchAgent:
             "type": "function",
             "function": {
                 "name": "search_papers",
-                "description": "Search the academic paper database for papers relevant to a query. Use this to find papers that support or relate to specific claims, concepts, or topics.",
+                "description": (
+                    "Search the academic paper database for papers relevant to a query. "
+                    "Use this to find papers that support or relate to specific claims, concepts, or topics."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -73,7 +79,10 @@ class ResearchAgent:
             "type": "function",
             "function": {
                 "name": "get_paper_details",
-                "description": "Get full details about a specific paper by its ID. Use this after searching to get complete information.",
+                "description": (
+                    "Get full details about a specific paper by its ID. "
+                    "Use this after searching to get complete information."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -128,7 +137,12 @@ class ResearchAgent:
             "type": "function",
             "function": {
                 "name": "refresh_eur_database_index",
-                "description": "Fetch and cache the Erasmus University Library A–Z database list (https://libguides.eur.nl/az/databases). Use this before making any claims about database availability at EUR. Returns cache metadata and a short summary.",
+                "description": (
+                    "Fetch and cache the Erasmus University Library A–Z database list "
+                    "(https://libguides.eur.nl/az/databases). Use this before making any "
+                    "claims about database availability at EUR. Returns cache metadata "
+                    "and a short summary."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -139,7 +153,10 @@ class ResearchAgent:
                         },
                         "max_age_hours": {
                             "type": "integer",
-                            "description": "If cache is newer than this, do not refetch unless force=true (default: 24)",
+                            "description": (
+                                "If cache is newer than this, do not refetch unless force=true "
+                                "(default: 24)"
+                            ),
                             "default": 24,
                         },
                     },
@@ -151,13 +168,20 @@ class ResearchAgent:
             "type": "function",
             "function": {
                 "name": "search_eur_databases",
-                "description": "Search the cached EUR Library A–Z database index by keyword(s) and return matching database titles and URLs. Use this to verify whether a named database/dataset is available via EUR subscriptions.",
+                "description": (
+                    "Search the cached EUR Library A–Z database index by keyword(s) and return "
+                    "matching database titles and URLs. Use this to verify whether a named "
+                    "database/dataset is available via EUR subscriptions."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "query": {
                             "type": "string",
-                            "description": "Keyword query, e.g., 'WRDS', 'Compustat', 'Bloomberg', 'Orbis', 'FactSet', 'Datastream'",
+                            "description": (
+                                "Keyword query, e.g., 'WRDS', 'Compustat', 'Bloomberg', "
+                                "'Orbis', 'FactSet', 'Datastream'"
+                            ),
                         },
                         "top_k": {
                             "type": "integer",
@@ -182,34 +206,12 @@ CRITICAL CITATION RULES - YOU MUST FOLLOW THESE:
 6. Use ONLY the exact titles, authors, and years returned by the tools
 7. If search returns no relevant results, say so honestly - do not make up citations
 
-WORKFLOW: Search first → Get details if needed → Then cite. Never skip the search step."""
+WORKFLOW: Search first → Get details if needed → Then cite. Never skip the search step.
+"""
 
     # EUR database list loaded from JSON file for comprehensive coverage
-    # Update rainer/data/eur_databases.json when database access changes
     _EUR_DB_JSON_PATH = Path(__file__).parent / "data" / "eur_databases.json"
     _EUR_DB_CACHE: dict | None = None
-
-    @classmethod
-    def _load_eur_databases(cls) -> dict:
-        """Load EUR database list from JSON file (cached)."""
-        if cls._EUR_DB_CACHE is not None:
-            return cls._EUR_DB_CACHE
-
-        try:
-            with open(cls._EUR_DB_JSON_PATH, encoding="utf-8") as f:
-                cls._EUR_DB_CACHE = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            # Fallback to minimal hardcoded list if JSON fails
-            cls._EUR_DB_CACHE = {
-                "databases": [
-                    {"name": "WRDS", "aliases": ["wrds", "compustat", "crsp"], "status": "active"},
-                    {"name": "LSEG Workspace", "aliases": ["lseg", "eikon", "datastream"], "status": "active"},
-                    {"name": "Orbis", "aliases": ["orbis", "bvd"], "status": "active"},
-                ],
-                "not_available": [],
-                "_load_error": str(e),
-            }
-        return cls._EUR_DB_CACHE
 
     DATA_SOURCE_RULES = """
 CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
@@ -220,100 +222,6 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
 5. Clearly label statements as VERIFIED / UNVERIFIED / ASSUMED when discussing data access or content
 6. If feasibility depends on unknown student choices (country/timeframe/unit), ask focused clarifying questions and provide fallback designs
 """
-
-    # System prompts for different modes
-    SYSTEM_PROMPTS = {
-        "feedback": """You are an academic research expert providing a STUDENT-FACING FEEDBACK REPORT on a student draft.
-
-You MUST prioritize feasibility: the study must be doable using either (a) public data (e.g., SEC EDGAR) or (b) data available via Erasmus University Library databases (verify against https://libguides.eur.nl/az/databases using tools).
-
-MANDATORY FIRST STEP (Data verification):
-- Call refresh_eur_database_index at the start of the assignment (before you comment on feasibility).
-- For each dataset/database the student mentions OR that the design implicitly requires (e.g., Compustat/CRSP/Orbis/Bloomberg/Refinitiv/FactSet/Datastream/IBES/etc.), call search_eur_databases to VERIFY availability at EUR.
-- If a database/dataset is not verified, label it UNVERIFIED and propose feasible alternatives (public or EUR-verified).
-
-Your role is to:
-1. Restate the research question, hypotheses, unit of analysis, geography, timeframe, main variables, and (if applicable) identification strategy in your own words.
-2. Provide constructive feedback to improve theory, contribution, and clarity.
-3. Run a Data & Feasibility Audit (required; see output format).
-4. Identify claims that need citation support and use search_papers to find relevant literature.
-5. Suggest specific papers that could strengthen the argument; explain WHY each is relevant to a specific claim.
-6. Provide a concrete revision checklist.
-
-HALLUCINATION CONTROLS:
-- Follow CITATION_RULES and DATA_SOURCE_RULES strictly.
-- Separate data statements into VERIFIED / UNVERIFIED / ASSUMED.
-- If you cannot verify feasibility, ask focused clarifying questions and provide fallback designs.
-
-OUTPUT FORMAT (use these headings):
-A. Executive summary (max 6 bullets; include #1 feasibility verdict)
-B. My understanding of your study (RQ, hypotheses, sample, variables, strategy)
-C. Strengths
-D. Biggest risks / threats to validity (ranked)
-E. Data & Feasibility Audit (required)
-   - E1. Data requirements table (unit, sample, timeframe, key variables, sources)
-   - E2. Data availability check
-       * Public sources (verified as public)
-       * EUR databases (VERIFIED via search_eur_databases results)
-       * UNVERIFIED items + feasible alternatives
-   - E3. Practical data acquisition plan (steps, expected effort, what to download)
-F. Methods & identification feedback (what would convince a reader)
-G. Literature & citations needed (use tool-backed citations only)
-H. Concrete revision checklist (10–15 actionable items)
-I. Clarifying questions (only the minimum needed)
-
-Current mode: Student Feedback (inline citations + reference list)""",
-        "writing": """You are an academic research assistant helping to write papers.
-
-Your role is to:
-1. Help structure arguments and identify gaps in literature coverage
-2. Find relevant papers from the database to support claims
-3. Suggest how to integrate citations naturally into the text
-4. Format citations in Quarto style (@author2020) for use with Pandoc/Quarto
-
-FEASIBILITY & NON-HALLUCINATION:
-- Do not describe access to proprietary datasets unless the user explicitly confirms access OR you have verified EUR database availability in this conversation.
-- When dataset access is unclear, write conditional language and add a short TODO list at the end.
-
-Help craft academic prose that integrates sources smoothly.
-
-Current mode: Writing Assistance (Quarto citations + BibTeX output)""",
-        "review": """You are an academic research assistant helping to write review reports.
-
-Your role is to:
-1. Evaluate manuscripts by checking claims against the literature
-2. Identify missing key references
-3. Assess the positioning of the work relative to existing literature
-4. Suggest additional papers the authors should cite or engage with
-5. Evaluate data availability/replicability and whether the empirical strategy is feasible
-
-HALLUCINATION CONTROLS:
-- Follow CITATION_RULES and DATA_SOURCE_RULES.
-- Do not claim a data source is available unless verified.
-
-Be thorough but fair. Structure comments into Major vs Minor issues.
-
-Current mode: Review Reports (inline citations + reference list)""",
-        "search": """You are an academic research assistant helping with literature searches.
-
-Your role is to:
-1. Find papers relevant to specific research questions using the search_papers tool
-2. Summarize what the literature says about topics
-3. Identify key papers and authors in a field
-4. Provide BibTeX entries for papers to add to reference managers
-
-IMPORTANT: After searching and finding relevant papers, you MUST provide a final text response summarizing what you found. Do NOT keep searching indefinitely. One or two searches is usually sufficient.
-
-Workflow:
-1. Use search_papers to find relevant papers (1-2 searches max)
-2. Optionally use get_paper_details for important papers
-3. ALWAYS end with a summary response listing the papers found and their relevance
-4. State corpus limitations if relevant (e.g., coverage of the local database)
-
-Focus on comprehensive coverage and accurate bibliographic information.
-
-Current mode: Literature Search (BibTeX output)""",
-    }
 
     def __init__(
         self,
@@ -336,11 +244,35 @@ Current mode: Literature Search (BibTeX output)""",
         )
 
         # Registry of papers seen in this session (for hallucination prevention)
-        # Only papers returned by search_papers can be cited
-        self.seen_papers: dict[str, dict] = {}  # DOI -> paper info
+        self.seen_papers: dict[str, dict] = {}
 
-        # Initialize LLM client
+        # Initialize LLM client and adapter
         self._init_llm()
+
+    @classmethod
+    def _load_eur_databases(cls) -> dict:
+        """Load EUR database list from JSON file (cached)."""
+        if cls._EUR_DB_CACHE is not None:
+            return cls._EUR_DB_CACHE
+
+        try:
+            with open(cls._EUR_DB_JSON_PATH, encoding="utf-8") as f:
+                cls._EUR_DB_CACHE = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            cls._EUR_DB_CACHE = {
+                "databases": [
+                    {"name": "WRDS", "aliases": ["wrds", "compustat", "crsp"], "status": "active"},
+                    {
+                        "name": "LSEG Workspace",
+                        "aliases": ["lseg", "eikon", "datastream"],
+                        "status": "active",
+                    },
+                    {"name": "Orbis", "aliases": ["orbis", "bvd"], "status": "active"},
+                ],
+                "not_available": [],
+                "_load_error": str(e),
+            }
+        return cls._EUR_DB_CACHE
 
     def _init_llm(self) -> None:
         """Initialize the LLM client based on config."""
@@ -348,12 +280,10 @@ Current mode: Literature Search (BibTeX output)""",
         self.model = self.config.provider.model
 
         if self.provider_type == "ollama":
-            # Local Ollama - for cloud models, user must run `ollama signin` first
             host = self.config.provider.ollama.base_url
             self.client = ollama.Client(host=host)
 
         elif self.provider_type == "ollama-cloud":
-            # Direct Ollama Cloud API access (no local Ollama needed)
             host = self.config.provider.ollama_cloud.base_url
             api_key = self.config.provider.ollama_cloud.api_key
             if not api_key:
@@ -391,6 +321,14 @@ Current mode: Literature Search (BibTeX output)""",
         else:
             raise ValueError(f"Unknown provider: {self.provider_type}")
 
+        google_wrappers = self._get_google_tools() if self.provider_type == "google" else None
+        self.adapter = create_provider_adapter(
+            provider=self.provider_type,
+            model=self.model,
+            client=self.client,
+            google_tool_wrappers=google_wrappers,
+        )
+
     def switch_provider(self, provider: str, model: str | None = None) -> None:
         """Switch to a different provider/model at runtime."""
         self.config.provider.name = provider  # type: ignore
@@ -406,8 +344,6 @@ Current mode: Literature Search (BibTeX output)""",
         """Execute a tool and return the result."""
         try:
             if name == "refresh_eur_database_index":
-                # Cache the EUR A–Z database index (best-effort; page is dynamic).
-                # This tool is intentionally conservative: it only reports what it can extract.
                 force = bool(arguments.get("force", False))
                 max_age_hours = int(arguments.get("max_age_hours", 24))
                 cache_key = "_eur_db_index_cache_v1"
@@ -434,18 +370,12 @@ Current mode: Literature Search (BibTeX output)""",
                         },
                     )
 
-                # Best-effort fetch: in some environments this won't work (no network/tooling).
-                # We must not hallucinate.
                 items: list[dict[str, str]] = []
                 source_url = "https://libguides.eur.nl/az/databases"
 
-                # Attempt to fetch using an internal lightweight client if available;
-                # otherwise provide an explicit failure.
                 html: str | None = None
                 fetch_error: str | None = None
                 try:
-                    # If the environment doesn't allow HTTP here, this will fail
-                    # and we will return a clear error.
                     import urllib.request
 
                     req = urllib.request.Request(
@@ -458,11 +388,6 @@ Current mode: Literature Search (BibTeX output)""",
                     fetch_error = str(e)
 
                 if html:
-                    # Heuristic extraction: look for anchor tags that likely represent
-                    # database entries. We only return what we can confidently extract
-                    # as (title, url).
-                    # NOTE: The LibGuides directory is often JS-rendered; extraction
-                    # may be incomplete.
                     for m in re.finditer(
                         r'<a[^>]+href="([^"]+)"[^>]*>([^<]{2,200})</a>',
                         html,
@@ -472,7 +397,6 @@ Current mode: Literature Search (BibTeX output)""",
                         title = re.sub(r"\s+", " ", m.group(2).strip())
                         if not title:
                             continue
-                        # Filter obvious navigation/boilerplate links
                         if title.lower() in (
                             "login",
                             "report a problem.",
@@ -482,7 +406,6 @@ Current mode: Literature Search (BibTeX output)""",
                             continue
                         if "libguides.eur.nl" in href or href.startswith("http"):
                             items.append({"title": title, "url": href})
-                    # De-duplicate by (title, url)
                     seen = set()
                     deduped = []
                     for it in items:
@@ -501,7 +424,6 @@ Current mode: Literature Search (BibTeX output)""",
                     }
                 )
 
-                # Load EUR database list to get count
                 eur_data = self._load_eur_databases()
                 known_count = len(eur_data.get("databases", []))
 
@@ -514,9 +436,11 @@ Current mode: Literature Search (BibTeX output)""",
                             "scraped_count": 0,
                             "known_databases_count": known_count,
                             "source_url": source_url,
-                            "warning": "Could not fetch the live EUR database list (network error or "
-                            "JS-rendered page). However, search_eur_databases can still match against "
-                            f"{known_count} known EUR databases from the curated JSON list.",
+                            "warning": (
+                                "Could not fetch the live EUR database list (network error or "
+                                "JS-rendered page). However, search_eur_databases can still match "
+                                "against the curated JSON list."
+                            ),
                             "error": fetch_error,
                         },
                         success=True,
@@ -530,13 +454,14 @@ Current mode: Literature Search (BibTeX output)""",
                         "scraped_count": len(items),
                         "known_databases_count": known_count,
                         "source_url": source_url,
-                        "note": "LibGuides is JS-rendered, so scraped results may be incomplete. "
-                        f"However, {known_count} known EUR databases are available "
-                        "via the curated JSON list (search_eur_databases will use both).",
+                        "note": (
+                            "LibGuides is JS-rendered, so scraped results may be incomplete. "
+                            "However, the curated JSON list is available for matching."
+                        ),
                     },
                 )
 
-            elif name == "search_eur_databases":
+            if name == "search_eur_databases":
                 query = str(arguments["query"]).strip()
                 if not query:
                     return ToolResult(
@@ -549,12 +474,10 @@ Current mode: Literature Search (BibTeX output)""",
                 top_k = int(arguments.get("top_k", 10))
                 q = query.lower()
 
-                # Load EUR database list from JSON
                 eur_data = self._load_eur_databases()
                 databases = eur_data.get("databases", [])
                 not_available = eur_data.get("not_available", [])
 
-                # Search against known EUR databases
                 matches = []
                 for db in databases:
                     db_name = db.get("name", "")
@@ -565,22 +488,22 @@ Current mode: Literature Search (BibTeX output)""",
                     notes = db.get("notes", "")
                     contains = db.get("contains", [])
 
-                    # Check if query matches name, aliases, or contained databases
                     haystack = f"{db_name} {' '.join(aliases)} {' '.join(contains)}".lower()
                     if q in haystack or any(q in alias or alias in q for alias in aliases):
-                        matches.append({
-                            "name": db_name,
-                            "url": url,
-                            "access": access,
-                            "status": status,
-                            "notes": notes,
-                            "source": "eur_database_list",
-                            "verified": status == "active",
-                        })
+                        matches.append(
+                            {
+                                "name": db_name,
+                                "url": url,
+                                "access": access,
+                                "status": status,
+                                "notes": notes,
+                                "source": "eur_database_list",
+                                "verified": status == "active",
+                            }
+                        )
                     if len(matches) >= top_k:
                         break
 
-                # Also check not_available list to warn user
                 unavailable_matches = []
                 for db in not_available:
                     db_name = db.get("name", "")
@@ -588,13 +511,14 @@ Current mode: Literature Search (BibTeX output)""",
                     notes = db.get("notes", "")
                     haystack = f"{db_name} {' '.join(aliases)}".lower()
                     if q in haystack or any(q in alias or alias in q for alias in aliases):
-                        unavailable_matches.append({
-                            "name": db_name,
-                            "status": "not_available",
-                            "notes": notes,
-                        })
+                        unavailable_matches.append(
+                            {
+                                "name": db_name,
+                                "status": "not_available",
+                                "notes": notes,
+                            }
+                        )
 
-                # Check scraped cache as fallback
                 cache_key = "_eur_db_index_cache_v1"
                 cache = getattr(self, cache_key, None)
                 scraped_matches = []
@@ -605,16 +529,17 @@ Current mode: Literature Search (BibTeX output)""",
                         url = it.get("url", "")
                         hay = f"{title} {url}".lower()
                         if q in hay and title.lower() not in matched_names:
-                            scraped_matches.append({
-                                "name": title,
-                                "url": url,
-                                "source": "scraped_index",
-                                "verified": False,
-                            })
-                        if len(scraped_matches) >= 3:  # Limit scraped results
+                            scraped_matches.append(
+                                {
+                                    "name": title,
+                                    "url": url,
+                                    "source": "scraped_index",
+                                    "verified": False,
+                                }
+                            )
+                        if len(scraped_matches) >= 3:
                             break
 
-                # Build response
                 all_matches = matches + scraped_matches
                 all_matches = all_matches[:top_k]
 
@@ -623,9 +548,11 @@ Current mode: Literature Search (BibTeX output)""",
                         name=name,
                         result={
                             "matches": [],
-                            "suggestion": f"No EUR database found matching '{query}'. "
-                            "This does NOT mean it's unavailable—check libguides.eur.nl/az/databases manually "
-                            "or contact edsc@eur.nl. Mark as UNVERIFIED in your response.",
+                            "suggestion": (
+                                f"No EUR database found matching '{query}'. "
+                                "This does NOT mean it's unavailable—check libguides.eur.nl/az/databases manually "
+                                "or contact edsc@eur.nl. Mark as UNVERIFIED in your response."
+                            ),
                         },
                     )
 
@@ -637,14 +564,13 @@ Current mode: Literature Search (BibTeX output)""",
 
                 return ToolResult(name=name, result=result)
 
-            elif name == "search_papers":
+            if name == "search_papers":
                 results = self.paper_search.search(
                     query=arguments["query"],
                     top_k=arguments.get("top_k", 10),
                     year_min=arguments.get("year_min"),
                     year_max=arguments.get("year_max"),
                 )
-                # Format results for the LLM
                 formatted = []
                 for r in results:
                     paper_info = {
@@ -660,7 +586,6 @@ Current mode: Literature Search (BibTeX output)""",
                         ),
                     }
                     formatted.append(paper_info)
-                    # Track this paper as seen (Part C: hallucination prevention)
                     self.seen_papers[r.paper.id] = {
                         "title": r.paper.title,
                         "authors": r.paper.authors,
@@ -668,17 +593,17 @@ Current mode: Literature Search (BibTeX output)""",
                     }
                 return ToolResult(name=name, result=formatted)
 
-            elif name == "get_paper_details":
+            if name == "get_paper_details":
                 paper_id = arguments["paper_id"]
-                # Part C: Validate paper was seen in search results
                 if paper_id not in self.seen_papers:
                     return ToolResult(
                         name=name,
                         result=None,
                         success=False,
-                        error=f"Paper '{paper_id}' was not found in search results. "
-                        f"You must use search_papers first to find papers before getting details. "
-                        f"Do NOT make up paper IDs.",
+                        error=(
+                            f"Paper '{paper_id}' was not found in search results. "
+                            "You must use search_papers first to find papers before getting details."
+                        ),
                     )
                 paper = self.paper_db.get_paper(paper_id)
                 if paper:
@@ -703,17 +628,17 @@ Current mode: Literature Search (BibTeX output)""",
                     error=f"Paper not found in database: {paper_id}",
                 )
 
-            elif name == "format_citation":
+            if name == "format_citation":
                 paper_id = arguments["paper_id"]
-                # Part C: Validate paper was seen in search results
                 if paper_id not in self.seen_papers:
                     return ToolResult(
                         name=name,
                         result=None,
                         success=False,
-                        error=f"Paper '{paper_id}' was not found in search results. "
-                        f"You must use search_papers first to find papers before citing. "
-                        f"Do NOT make up paper IDs or citations.",
+                        error=(
+                            f"Paper '{paper_id}' was not found in search results. "
+                            "You must use search_papers first to find papers before citing."
+                        ),
                     )
                 paper = self.paper_db.get_paper(paper_id)
                 if paper:
@@ -732,68 +657,41 @@ Current mode: Literature Search (BibTeX output)""",
                     error=f"Paper not found in database: {paper_id}",
                 )
 
-            elif name == "save_output":
+            if name == "save_output":
                 from .output import MarkdownWriter
 
                 writer = MarkdownWriter(citation_formatter=self.citation_formatter)
                 writer.set_title(arguments["title"])
                 writer.add_text(arguments["content"])
                 filepath = writer.write()
-                return ToolResult(
-                    name=name,
-                    result={"saved_to": str(filepath)},
-                )
+                return ToolResult(name=name, result={"saved_to": str(filepath)})
 
-            else:
-                return ToolResult(
-                    name=name,
-                    result=None,
-                    success=False,
-                    error=f"Unknown tool: {name}",
-                )
+            return ToolResult(
+                name=name,
+                result=None,
+                success=False,
+                error=f"Unknown tool: {name}",
+            )
 
         except Exception as e:
             return ToolResult(name=name, result=None, success=False, error=str(e))
 
-    def _get_openai_tools(self) -> list[dict]:
-        """Convert tools to OpenAI format (also used by Ollama and OpenRouter)."""
-        return self.TOOLS
-
-    def _get_anthropic_tools(self) -> list[dict]:
-        """Convert tools to Anthropic format."""
-        tools = []
-        for tool in self.TOOLS:
-            func = tool["function"]
-            tools.append(
-                {
-                    "name": func["name"],
-                    "description": func["description"],
-                    "input_schema": func["parameters"],
-                }
-            )
-        return tools
-
     def _get_google_tools(self) -> list:
         """Create Python function wrappers for Google's automatic function calling."""
 
-        # Create wrapper functions that the Google SDK can call automatically
+        def _record_tool(name: str, result: ToolResult) -> str:
+            payload = {"success": result.success, "result": result.result, "error": result.error}
+            content = json.dumps(payload)
+            # Use tool name as call id fallback
+            self.memory.add("tool", content, tool_name=name, tool_call_id=name)
+            return content
+
         def search_papers(
             query: str,
             top_k: int = 10,
             year_min: int | None = None,
             year_max: int | None = None,
         ) -> str:
-            """Search the academic paper database for papers relevant to a query.
-
-            Args:
-                query: Natural language search query describing what you're looking for
-                top_k: Number of results to return (default: 10)
-                year_min: Minimum publication year filter (optional)
-                year_max: Maximum publication year filter (optional)
-
-            Returns:
-                JSON string with search results
-            """
             result = self._execute_tool(
                 "search_papers",
                 {
@@ -803,89 +701,30 @@ Current mode: Literature Search (BibTeX output)""",
                     "year_max": year_max,
                 },
             )
-            return json.dumps(
-                {"success": result.success, "result": result.result, "error": result.error}
-            )
+            return _record_tool("search_papers", result)
 
         def get_paper_details(paper_id: str) -> str:
-            """Get full details about a specific paper by its ID.
-
-            Args:
-                paper_id: The paper ID (DOI)
-
-            Returns:
-                JSON string with paper details
-            """
             result = self._execute_tool("get_paper_details", {"paper_id": paper_id})
-            return json.dumps(
-                {"success": result.success, "result": result.result, "error": result.error}
-            )
+            return _record_tool("get_paper_details", result)
 
         def format_citation(paper_id: str) -> str:
-            """Format a paper citation in the appropriate style for the current mode.
-
-            Args:
-                paper_id: The paper ID to cite
-
-            Returns:
-                JSON string with formatted citation
-            """
             result = self._execute_tool("format_citation", {"paper_id": paper_id})
-            return json.dumps(
-                {"success": result.success, "result": result.result, "error": result.error}
-            )
+            return _record_tool("format_citation", result)
 
         def save_output(title: str, content: str) -> str:
-            """Save the current response or generated content to a markdown file.
-
-            Args:
-                title: Title for the output file
-                content: The markdown content to save
-
-            Returns:
-                JSON string with save confirmation
-            """
             result = self._execute_tool("save_output", {"title": title, "content": content})
-            return json.dumps(
-                {"success": result.success, "result": result.result, "error": result.error}
-            )
+            return _record_tool("save_output", result)
 
-        def refresh_eur_database_index(
-            force: bool = False, max_age_hours: int = 24
-        ) -> str:
-            """Fetch and cache the Erasmus University Library A–Z database list.
-
-            Args:
-                force: Force refresh even if cache is recent (default: false)
-                max_age_hours: If cache is newer than this, do not refetch (default: 24)
-
-            Returns:
-                JSON string with cache metadata and summary
-            """
+        def refresh_eur_database_index(force: bool = False, max_age_hours: int = 24) -> str:
             result = self._execute_tool(
                 "refresh_eur_database_index",
                 {"force": force, "max_age_hours": max_age_hours},
             )
-            return json.dumps(
-                {"success": result.success, "result": result.result, "error": result.error}
-            )
+            return _record_tool("refresh_eur_database_index", result)
 
         def search_eur_databases(query: str, top_k: int = 10) -> str:
-            """Search the cached EUR Library A–Z database index by keyword(s).
-
-            Args:
-                query: Keyword query, e.g., 'WRDS', 'Compustat', 'Bloomberg'
-                top_k: Maximum number of matches to return (default: 10)
-
-            Returns:
-                JSON string with matching database titles and URLs
-            """
-            result = self._execute_tool(
-                "search_eur_databases", {"query": query, "top_k": top_k}
-            )
-            return json.dumps(
-                {"success": result.success, "result": result.result, "error": result.error}
-            )
+            result = self._execute_tool("search_eur_databases", {"query": query, "top_k": top_k})
+            return _record_tool("search_eur_databases", result)
 
         return [
             search_papers,
@@ -896,197 +735,223 @@ Current mode: Literature Search (BibTeX output)""",
             search_eur_databases,
         ]
 
-    def _call_ollama(self, messages: list[dict]) -> tuple[str, list[dict] | None]:
-        """Make Ollama API call and return (content, tool_calls)."""
-        response = self.client.chat(
-            model=self.model,
-            messages=messages,
-            tools=self._get_openai_tools(),
-        )
-        message = response["message"]
-        content = message.get("content", "")
-        tool_calls = message.get("tool_calls")
-        return content, tool_calls
+    def _build_prompt(self) -> str:
+        """Build base system prompt with configurable templates and rules."""
+        fallback = ""
+        base = resolve_prompt(self.mode, fallback=fallback)
+        return base + "\n" + self.CITATION_RULES + "\n" + self.DATA_SOURCE_RULES
 
-    def _call_openai(self, messages: list[dict]) -> tuple[str, list[dict] | None]:
-        """Make OpenAI/OpenRouter API call and return (content, tool_calls)."""
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            tools=self._get_openai_tools(),
-        )
-        message = response.choices[0].message
-        content = message.content or ""
+    def _build_draft_context(self) -> str:
+        """Build context block for loaded drafts without overloading the prompt."""
+        if not self.memory.get_context("draft_loaded"):
+            return ""
 
-        # Normalize tool_calls to match our internal format
-        tool_calls = None
-        if message.tool_calls:
-            tool_calls = []
-            for tc in message.tool_calls:
-                args = tc.function.arguments
-                if isinstance(args, str):
-                    args = json.loads(args)
-                tool_calls.append(
-                    {
-                        "id": tc.id,
-                        "function": {
-                            "name": tc.function.name,
-                            "arguments": args,
-                        },
-                    }
-                )
-        return content, tool_calls
+        draft_name = self.memory.get_context("draft_name") or "draft"
+        draft_metadata = self.memory.get_context("draft_metadata") or {}
+        summary = self.memory.get_context("draft_summary") or ""
+        sections = self.memory.get_context("draft_sections") or {}
+        excerpt = self.memory.get_context("draft_excerpt") or ""
 
-    def _call_anthropic(self, messages: list[dict]) -> tuple[str, list[dict] | None]:
-        """Make Anthropic API call and return (content, tool_calls)."""
-        # Extract system message and convert messages for Anthropic format
-        system_content = ""
-        anthropic_messages = []
+        lines = [f"\n\n--- LOADED DOCUMENT: {draft_name} ---"]
+        if draft_metadata.get("format"):
+            lines.append(f"[Format: {draft_metadata['format'].upper()}]")
 
-        for msg in messages:
-            if msg["role"] == "system":
-                system_content = msg["content"]
-            elif msg["role"] == "tool":
-                # Anthropic uses tool_result in user messages
-                anthropic_messages.append(
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": msg.get("tool_call_id", ""),
-                                "content": msg["content"],
-                            }
-                        ],
-                    }
-                )
-            elif msg["role"] == "assistant" and msg.get("tool_calls"):
-                # Convert assistant message with tool calls
-                content_blocks = []
-                if msg.get("content"):
-                    content_blocks.append({"type": "text", "text": msg["content"]})
-                for tc in msg["tool_calls"]:
-                    content_blocks.append(
-                        {
-                            "type": "tool_use",
-                            "id": tc.get("id", tc["function"]["name"]),
-                            "name": tc["function"]["name"],
-                            "input": tc["function"]["arguments"],
-                        }
-                    )
-                anthropic_messages.append({"role": "assistant", "content": content_blocks})
-            else:
-                anthropic_messages.append(msg)
+        if summary:
+            lines.append("\n[Draft Summary]")
+            lines.append(summary)
 
-        response = self.client.messages.create(
-            model=self.model,
-            max_tokens=4096,
-            system=system_content,
-            messages=anthropic_messages,
-            tools=self._get_anthropic_tools(),
-        )
+        if sections:
+            max_chars = self.config.draft_context.max_section_chars
+            lines.append("\n[Key Sections]")
+            for name, content in sections.items():
+                if content:
+                    trimmed = content.strip()
+                    if max_chars > 0 and len(trimmed) > max_chars:
+                        trimmed = trimmed[:max_chars] + "..."
+                    lines.append(f"\n## {name.title()}\n{trimmed}")
 
-        # Parse response
-        content = ""
-        tool_calls = None
+        if excerpt:
+            lines.append("\n[Excerpt]")
+            lines.append(excerpt)
 
-        for block in response.content:
-            if block.type == "text":
-                content = block.text
-            elif block.type == "tool_use":
-                if tool_calls is None:
-                    tool_calls = []
-                tool_calls.append(
-                    {
-                        "id": block.id,
-                        "function": {
-                            "name": block.name,
-                            "arguments": block.input,
-                        },
-                    }
-                )
+        lines.append("\n--- END OF DOCUMENT ---")
+        return "\n".join(lines)
 
-        return content, tool_calls
+    def _build_reference_papers_context(self) -> str:
+        """Build context block for loaded reference papers (writing mode)."""
+        ref_papers = self.memory.get_context("reference_papers")
+        if not ref_papers or self.mode != "writing":
+            return ""
 
-    def _call_google(self, messages: list[dict]) -> tuple[str, list[dict] | None]:
-        """Make Google Gemini API call using chat with automatic function calling.
+        lines = ["\n\n--- LOADED REFERENCE PAPERS ---"]
+        for i, paper in enumerate(ref_papers, 1):
+            title = paper.get("title", paper.get("name", f"Paper {i}"))
+            authors = paper.get("authors", "")
+            abstract = paper.get("abstract", "")
+            content = paper.get("content", "")
 
-        The SDK handles function calling automatically, including thought signatures.
-        Returns (content, None) since tools are executed automatically.
-        """
-        # Extract system instruction and build history
-        system_instruction = None
-        history = []
+            lines.append(f"\n## Reference Paper {i}: {title}")
+            if authors:
+                lines.append(f"Authors: {authors}")
+            if abstract:
+                lines.append(f"Abstract: {abstract}")
+            lines.append(f"\nContent:\n{content}\n---")
 
-        for msg in messages:
-            if msg["role"] == "system":
-                system_instruction = msg["content"]
-            elif msg["role"] == "user":
-                history.append(
-                    google_types.Content(
-                        role="user", parts=[google_types.Part.from_text(text=msg["content"])]
-                    )
-                )
-            elif msg["role"] == "assistant":
-                # Skip tool_calls since SDK handles them automatically
-                if msg.get("content"):
-                    history.append(
-                        google_types.Content(
-                            role="model", parts=[google_types.Part.from_text(text=msg["content"])]
-                        )
-                    )
-            # Skip "tool" role messages - SDK handles tool results automatically
+        lines.append("--- END OF REFERENCE PAPERS ---")
+        lines.append("\nYou can cite these papers in your writing. Use the information above.")
+        return "\n".join(lines)
 
-        # Get the last user message as the current input
-        current_message = None
-        if history and history[-1].role == "user":
-            current_message = history.pop()
+    def _extract_dataset_mentions(self, text: str) -> list[str]:
+        """Extract likely dataset/database mentions from draft text."""
+        if not text:
+            return []
+        hay = text.lower()
+        eur_data = self._load_eur_databases()
+        names: set[str] = set()
 
-        if not current_message:
-            return "", None
+        # From curated list
+        for db in eur_data.get("databases", []):
+            name = db.get("name", "")
+            aliases = db.get("aliases", [])
+            contains = db.get("contains", [])
+            for term in [name, *aliases, *contains]:
+                if term and term.lower() in hay:
+                    names.add(name)
 
-        # Create chat with history and config
-        config = google_types.GenerateContentConfig(
-            tools=self._get_google_tools(),
-            system_instruction=system_instruction,
-        )
+        # From not available list
+        for db in eur_data.get("not_available", []):
+            name = db.get("name", "")
+            aliases = db.get("aliases", [])
+            for term in [name, *aliases]:
+                if term and term.lower() in hay:
+                    names.add(name)
 
-        chat = self.client.chats.create(
-            model=self.model,
-            history=history if history else None,
-            config=config,
-        )
+        # Common finance datasets (fallback)
+        common = [
+            "Compustat",
+            "CRSP",
+            "WRDS",
+            "IBES",
+            "FactSet",
+            "Capital IQ",
+            "Bloomberg",
+            "Refinitiv",
+            "Datastream",
+            "Orbis",
+            "Bureau van Dijk",
+            "Worldscope",
+            "S&P Global",
+            "Morningstar",
+            "PitchBook",
+            "Preqin",
+            "Dealogic",
+        ]
+        for term in common:
+            if term.lower() in hay:
+                names.add(term)
 
-        # Send message - SDK will automatically execute function calls
-        response = chat.send_message(current_message.parts[0].text)
+        return sorted(names)
 
-        # Return the final text response (tools already executed)
-        content = response.text if response.text else ""
-        return content, None  # No tool_calls - they were handled automatically
+    def _ensure_feedback_data_verification(self) -> None:
+        """Auto-run EUR verification in feedback mode to keep feasibility checks consistent."""
+        if self.mode != "feedback":
+            return
 
-    def _format_tool_message(self, tool_call_id: str, tool_name: str, result_content: str) -> dict:
-        """Format tool result message for the current provider."""
-        if self.provider_type in ("ollama", "ollama-cloud"):
-            return {"role": "tool", "content": result_content}
-        elif self.provider_type in ("openai", "openrouter"):
-            return {
-                "role": "tool",
-                "tool_call_id": tool_call_id,
-                "content": result_content,
-            }
-        elif self.provider_type == "anthropic":
-            return {
-                "role": "tool",
-                "tool_call_id": tool_call_id,
-                "content": result_content,
-            }
-        elif self.provider_type == "google":
-            return {
-                "role": "tool",
-                "tool_name": tool_name,
-                "content": result_content,
-            }
-        return {"role": "tool", "content": result_content}
+        if not self.memory.get_context("draft_loaded"):
+            return
+
+        draft_content = self.memory.get_context("draft_content") or ""
+        last_hash = self.memory.get_context("eur_verification_hash")
+        current_hash = str(hash(draft_content))
+        if last_hash == current_hash:
+            return
+
+        refresh = self._execute_tool("refresh_eur_database_index", {})
+        self.memory.set_context("eur_refresh_result", refresh.result)
+
+        mentions = self._extract_dataset_mentions(draft_content)
+        verification_results = {}
+        for name in mentions:
+            result = self._execute_tool("search_eur_databases", {"query": name, "top_k": 5})
+            verification_results[name] = result.result
+
+        self.memory.set_context("eur_verification", verification_results)
+        self.memory.set_context("eur_verification_hash", current_hash)
+
+    def _build_data_verification_context(self) -> str:
+        """Build context block with EUR verification results."""
+        if self.mode != "feedback":
+            return ""
+        verification = self.memory.get_context("eur_verification") or {}
+        refresh = self.memory.get_context("eur_refresh_result") or {}
+        if not verification and not refresh:
+            return ""
+
+        lines = ["\n\n--- EUR DATABASE VERIFICATION ---"]
+        if refresh:
+            lines.append("[Refresh Result]")
+            lines.append(json.dumps(refresh, indent=2))
+        if verification:
+            lines.append("\n[Database Checks]")
+            lines.append(json.dumps(verification, indent=2))
+        lines.append("\n--- END EUR DATABASE VERIFICATION ---")
+        return "\n".join(lines)
+
+    def _build_review_context(self) -> str:
+        """Build additional review/feedback context for structured prompting."""
+        if self.mode not in ("feedback", "review"):
+            return ""
+        summary = self.memory.get_context("draft_summary") or ""
+        sections = self.memory.get_context("draft_sections") or {}
+        if not summary and not sections:
+            return ""
+        lines = ["\n\n--- REVIEW PIPELINE CONTEXT ---"]
+        if summary:
+            lines.append("[Summary]")
+            lines.append(summary)
+        if sections:
+            max_chars = self.config.draft_context.max_section_chars
+            lines.append("\n[Sections]")
+            for name, content in sections.items():
+                if content:
+                    trimmed = content.strip()
+                    if max_chars > 0 and len(trimmed) > max_chars:
+                        trimmed = trimmed[:max_chars] + "..."
+                    lines.append(f"\n## {name.title()}\n{trimmed}")
+        lines.append("\n--- END REVIEW PIPELINE CONTEXT ---")
+        return "\n".join(lines)
+
+    def _get_missing_required_headings(self, content: str) -> list[str]:
+        """Return missing required headings for feedback/review outputs."""
+        if self.mode == "feedback":
+            required = [
+                "A. Executive summary",
+                "B. My understanding of your study",
+                "C. Strengths",
+                "D. Biggest risks / threats to validity",
+                "E. Data & Feasibility Audit",
+                "F. Methods & identification feedback",
+                "G. Literature & citations needed",
+                "H. Concrete revision checklist",
+                "I. Clarifying questions",
+            ]
+        elif self.mode == "review":
+            required = ["Major issues", "Minor issues"]
+        else:
+            return []
+
+        lower = content.lower()
+        return [heading for heading in required if heading.lower() not in lower]
+
+    def _build_missing_sections_request(self, missing: list[str]) -> str:
+        """Build a follow-up request to fill missing sections."""
+        lines = [
+            "The response is missing required sections.",
+            "Please add content under each missing heading below. Return ONLY the missing sections with their headings:",
+        ]
+        for heading in missing:
+            lines.append(f"- {heading}")
+        return "\n".join(lines)
 
     def chat(self, user_input: str) -> str:
         """
@@ -1094,144 +959,115 @@ Current mode: Literature Search (BibTeX output)""",
 
         Handles multi-turn conversation with tool calling.
         """
-        # Add user message to memory
         self.memory.add("user", user_input)
 
-        # Build messages for LLM (include citation and data source rules to prevent hallucinations)
-        system_prompt = (
-            self.SYSTEM_PROMPTS[self.mode]
-            + "\n"
-            + self.CITATION_RULES
-            + "\n"
-            + self.DATA_SOURCE_RULES
-        )
+        system_prompt = self._build_prompt()
 
-        # Include loaded draft content in context (for feedback/review modes)
-        draft_context = ""
-        if self.memory.get_context("draft_loaded"):
-            draft_name = self.memory.get_context("draft_name") or "draft"
-            draft_content = self.memory.get_context("draft_content") or ""
-            draft_metadata = self.memory.get_context("draft_metadata") or {}
+        draft_context = self._build_draft_context()
+        papers_context = self._build_reference_papers_context()
 
-            if draft_content:
-                draft_context = f"\n\n--- LOADED DOCUMENT: {draft_name} ---\n"
-                if draft_metadata.get("format"):
-                    draft_context += f"[Format: {draft_metadata['format'].upper()}]\n"
-                draft_context += f"\n{draft_content}\n\n--- END OF DOCUMENT ---"
+        if self.mode == "feedback":
+            self._ensure_feedback_data_verification()
+            system_prompt += self._build_data_verification_context()
 
-        # Include loaded reference papers in context (for writing mode)
-        papers_context = ""
-        ref_papers = self.memory.get_context("reference_papers")
-        if ref_papers and self.mode == "writing":
-            papers_context = "\n\n--- LOADED REFERENCE PAPERS ---\n"
-            for i, paper in enumerate(ref_papers, 1):
-                title = paper.get("title", paper.get("name", f"Paper {i}"))
-                authors = paper.get("authors", "")
-                abstract = paper.get("abstract", "")
-                content = paper.get("content", "")
+        if self.mode in ("feedback", "review"):
+            system_prompt += self._build_review_context()
 
-                papers_context += f"\n## Reference Paper {i}: {title}\n"
-                if authors:
-                    papers_context += f"Authors: {authors}\n"
-                if abstract:
-                    papers_context += f"Abstract: {abstract}\n"
-                papers_context += f"\nContent:\n{content}\n"
-                papers_context += "\n---\n"
-            papers_context += "--- END OF REFERENCE PAPERS ---\n"
-            papers_context += "\nYou can cite these papers in your writing. Use the information above.\n"
-
-        # Build full system prompt with loaded content
-        full_system_prompt = system_prompt
-        if draft_context:
-            full_system_prompt += draft_context
-        if papers_context:
-            full_system_prompt += papers_context
+        full_system_prompt = system_prompt + draft_context + papers_context
 
         messages = [
             {"role": "system", "content": full_system_prompt},
             *self.memory.get_messages(),
         ]
 
-        # Agent loop - keep going until we get a final response
         max_iterations = 15
-        content = ""  # Initialize content to track last response
+        content = ""
+        follow_up_attempted = False
 
-        for iteration in range(max_iterations):
-            # Call the appropriate provider
-            if self.provider_type in ("ollama", "ollama-cloud"):
-                content, tool_calls = self._call_ollama(messages)
-            elif self.provider_type in ("openai", "openrouter"):
-                content, tool_calls = self._call_openai(messages)
-            elif self.provider_type == "anthropic":
-                content, tool_calls = self._call_anthropic(messages)
-            elif self.provider_type == "google":
-                content, tool_calls = self._call_google(messages)
-            else:
-                raise ValueError(f"Unknown provider: {self.provider_type}")
+        for _ in range(max_iterations):
+            content, tool_calls = self.adapter.generate(messages, self.TOOLS)
 
-            # Check if there are tool calls
             if tool_calls:
-                # Add assistant's message with tool calls first (once per response)
+                tool_call_dicts = [
+                    {"id": tc.id, "function": {"name": tc.name, "arguments": tc.arguments}}
+                    for tc in tool_calls
+                ]
                 messages.append(
                     {
                         "role": "assistant",
                         "content": content,
-                        "tool_calls": tool_calls,
+                        "tool_calls": tool_call_dicts,
                     }
                 )
 
-                # Process each tool call and collect results
-                for tool_call in tool_calls:
-                    func = tool_call["function"]
-                    tool_name = func["name"]
-                    tool_args = func.get("arguments", {})
-                    tool_call_id = tool_call.get("id", tool_name)
-
-                    # Execute the tool
-                    result = self._execute_tool(tool_name, tool_args)
-
-                    # Add tool result to conversation
+                for tc in tool_calls:
+                    result = self._execute_tool(tc.name, tc.arguments)
                     tool_result_content = json.dumps(
                         {"success": result.success, "result": result.result, "error": result.error}
                     )
 
-                    # Add tool result in provider-specific format
                     messages.append(
-                        self._format_tool_message(tool_call_id, tool_name, tool_result_content)
+                        self.adapter.format_tool_result(tc.id, tc.name, tool_result_content)
                     )
-
-                    # Also track in memory
-                    self.memory.add("tool", tool_result_content, tool_name=tool_name)
-
+                    self.memory.add(
+                        "tool",
+                        tool_result_content,
+                        tool_name=tc.name,
+                        tool_call_id=tc.id,
+                    )
             else:
-                # No tool calls - check if we have content for final response
                 if content:
+                    missing = self._get_missing_required_headings(content)
+                    if missing and not follow_up_attempted:
+                        follow_up_attempted = True
+                        messages.append({"role": "assistant", "content": content})
+                        messages.append(
+                            {
+                                "role": "user",
+                                "content": self._build_missing_sections_request(missing),
+                            }
+                        )
+                        continue
                     self.memory.add("assistant", content)
                     return content
-                # Some models return empty content after tool results
-                # Continue the loop to give the model another chance to respond
                 continue
 
-        # If we hit max iterations, return whatever content we have
         if content:
             self.memory.add("assistant", content)
             return content
-        return "I apologize, but I wasn't able to complete the request within the allowed steps. Try a more specific query."
+        return "I wasn't able to complete the request within the allowed steps."
 
-    def load_draft(
-        self, content: str, name: str = "draft", metadata: dict | None = None
-    ) -> str:
+    def _build_draft_summary(self, content: str) -> str:
+        """Build a deterministic summary from key sections without LLM calls."""
+        if not content:
+            return ""
+
+        sections = extract_key_sections(content)
+        lines = []
+        for name in (
+            "abstract",
+            "introduction",
+            "method",
+            "data",
+            "result",
+            "discussion",
+            "conclusion",
+        ):
+            snippet = sections.get(name)
+            if snippet:
+                compact = snippet.strip().replace("\n", " ")
+                compact = compact[:400] + ("..." if len(compact) > 400 else "")
+                lines.append(f"- {name.title()}: {compact}")
+        return "\n".join(lines)
+
+    def load_draft(self, content: str, name: str = "draft", metadata: dict | None = None) -> str:
         """Load a draft into context for feedback/review."""
-        from .chunking import estimate_tokens
-
-        # Store in context
         self.memory.set_context("draft_loaded", True)
         self.memory.set_context("draft_name", name)
         self.memory.set_context("draft_content", content)
         if metadata:
             self.memory.set_context("draft_metadata", metadata)
 
-        # Check if chunking needed
         tokens = estimate_tokens(content)
         if tokens > 4000:
             chunks = chunk_text(content)
@@ -1240,9 +1076,20 @@ Current mode: Literature Search (BibTeX output)""",
         else:
             msg = f"Loaded draft '{name}' ({tokens} tokens)"
 
-        # Add format info if from PDF/docx
         if metadata and metadata.get("format") in ("pdf", "docx"):
             msg += f" [parsed from {metadata['format'].upper()}]"
+
+        # Review pipeline preprocessing
+        self.memory.set_context("draft_sections", extract_key_sections(content))
+        self.memory.set_context("draft_summary", self._build_draft_summary(content))
+
+        # Limit excerpt for prompt context
+        max_tokens = self.config.draft_context.max_context_tokens
+        if self.config.draft_context.include_full_draft and tokens <= max_tokens:
+            self.memory.set_context("draft_excerpt", content)
+        else:
+            excerpt = content[: max_tokens * 4]
+            self.memory.set_context("draft_excerpt", excerpt)
 
         return msg
 
@@ -1251,17 +1098,10 @@ Current mode: Literature Search (BibTeX output)""",
     ) -> str:
         """
         Load a reference paper into context for writing mode.
-
-        Unlike drafts, reference papers are stored as citable sources that
-        the agent can reference when helping write.
         """
-        from .chunking import estimate_tokens
         from .pdf import extract_paper_info
 
-        # Extract paper info
         paper_info = extract_paper_info(content, metadata)
-
-        # Store reference papers in a list (can load multiple)
         ref_papers = self.memory.get_context("reference_papers") or []
 
         paper_entry = {
@@ -1275,7 +1115,6 @@ Current mode: Literature Search (BibTeX output)""",
         ref_papers.append(paper_entry)
         self.memory.set_context("reference_papers", ref_papers)
 
-        # Build response message
         tokens = estimate_tokens(content)
         title = paper_info.get("title", name)
         if len(title) > 60:
@@ -1291,7 +1130,6 @@ Current mode: Literature Search (BibTeX output)""",
             msg += f"\n  Abstract: {abstract_preview}"
 
         msg += f"\n  [Paper #{len(ref_papers)} - use in writing mode to cite/reference]"
-
         return msg
 
     def get_reference_papers_summary(self) -> str:

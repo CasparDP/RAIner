@@ -1,10 +1,11 @@
 """Output formatting and file writing utilities."""
 
+import re
 from datetime import datetime
 from pathlib import Path
 
-from .config import get_config
 from .citations import CitationFormatter
+from .config import get_config
 
 
 class MarkdownWriter:
@@ -34,6 +35,16 @@ class MarkdownWriter:
         self._metadata[key] = value
         return self
 
+    def set_draft_info(
+        self, title: str | None = None, student: str | None = None
+    ) -> "MarkdownWriter":
+        """Convenience helper to add common draft metadata for Quarto."""
+        if title:
+            self._metadata.setdefault("draft_title", title)
+        if student:
+            self._metadata.setdefault("student_name", student)
+        return self
+
     def add_section(self, heading: str, content: str) -> "MarkdownWriter":
         """Add a section with heading."""
         self._sections.append((heading, content))
@@ -51,6 +62,10 @@ class MarkdownWriter:
         # YAML frontmatter
         if self._metadata:
             lines.append("---")
+            # Inject Quarto format hint using nested Quarto config
+            # Prefer pdf output, but allow overriding via metadata if provided
+            lines.append("format:")
+            lines.append("  pdf: default")
             for key, value in self._metadata.items():
                 # Handle multiline values
                 if "\n" in value:
@@ -81,13 +96,23 @@ class MarkdownWriter:
         return "\n".join(lines)
 
     def write(self, filename: str | None = None) -> Path:
-        """Write document to file."""
+        """Write document to file.
+
+        If filename is not provided, use the configured default_extension
+        (e.g., .qmd) from the output config. When a filename is provided
+        explicitly, it is respected as-is.
+        """
         if filename is None:
+            config = get_config()
+            default_ext = getattr(config.output, "default_extension", ".qmd") or ".qmd"
+            if not default_ext.startswith("."):
+                default_ext = "." + default_ext
+
             # Generate filename from title and timestamp
             safe_title = "".join(c if c.isalnum() or c in " -_" else "" for c in self._title)
             safe_title = safe_title.replace(" ", "_")[:50]
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{safe_title}_{timestamp}.md"
+            filename = f"{safe_title}_{timestamp}{default_ext}"
 
         filepath = self.output_dir / filename
         content = self.build()
@@ -101,6 +126,32 @@ class MarkdownWriter:
         self._metadata.clear()
         if self.citation_formatter:
             self.citation_formatter.reset()
+
+
+def _parse_draft_name(draft_name: str) -> tuple[str | None, str | None]:
+    """Parse draft name into (student_name, draft_title) using a simple dash heuristic.
+
+    Expected common pattern (but tolerant to spacing and extra parts), e.g.:
+        "Ashkan Issazadeh – Draft proposal – v1 – 23 feb"
+    Heuristic:
+        - Split on the first en dash (–) or hyphen (-), allowing arbitrary spaces around.
+        - First segment -> student_name
+        - Second segment -> draft_title
+        - If no dash is found, return (None, draft_name).
+    """
+    # Normalize various dash patterns with optional spaces to a single " – " separator
+    normalized = draft_name.replace("—", "–")  # em dash to en dash
+    # Handle patterns like "Name-Title", "Name - Title", "Name – Title"
+    parts = re.split(r"\s*[–-]\s*", normalized, maxsplit=1)
+    if not parts:
+        return None, None
+    if len(parts) == 1:
+        # No dash found: we only have a title-like string
+        title = parts[0].strip() or None
+        return None, title
+    student = parts[0].strip() or None
+    title = parts[1].strip() or None
+    return student, title
 
 
 def create_feedback_report(
@@ -127,6 +178,9 @@ def create_feedback_report(
     writer.set_title(f"Feedback on: {draft_name}")
     writer.add_metadata("date", datetime.now().strftime("%Y-%m-%d"))
     writer.add_metadata("type", "feedback")
+    # Parse draft_name into student_name and draft_title where possible
+    student_name, draft_title = _parse_draft_name(draft_name)
+    writer.set_draft_info(title=draft_title or draft_name, student=student_name)
 
     # Summary
     writer.add_section(

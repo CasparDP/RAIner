@@ -34,7 +34,7 @@ def print_welcome() -> None:
         Panel(
             "[bold blue]RAiner[/bold blue] - Research Assistant\n"
             "An open-source academic research assistant\n\n"
-            "Commands: /help, /mode, /provider, /model, /sessions, /save, /refs, /quit",
+            "Commands: /help, /load, /review, /feedback, /provider, /model, /sessions, /save, /refs, /quit",
             title="Welcome",
             border_style="blue",
         )
@@ -49,27 +49,29 @@ def print_help() -> None:
 | Command | Description |
 |---------|-------------|
 | `/help` | Show this help |
-| `/mode <mode>` | Switch mode (feedback, writing, review, search) |
 | `/provider [name] [model]` | Show/switch LLM provider |
 | `/model <name>` | Switch model |
 | `/sessions` | List recent sessions |
 | `/resume <id>` | Resume a previous session |
-| `/load <file>` | Load a draft/document for feedback/review |
+| `/load <file>` | Load a draft/document (PDF, DOCX, MD, TXT) |
 | `/loadpaper <file>` | Load a reference paper (PDF) for writing mode |
+| `/review [extra prompt]` | Run a structured review workflow on the loaded draft |
+| `/feedback [extra prompt]` | Run a structured student feedback report on the loaded draft |
 | `/papers` | Show loaded reference papers |
-| `/save [filename]` | Save conversation to markdown |
+| `/save [filename]` | Save conversation to a Quarto/Markdown file (default `.qmd`) |
 | `/refs` | Show current reference list |
 | `/bibtex` | Show BibTeX entries |
 | `/stats` | Show database statistics |
-| `/clear` | Clear conversation (new session) |
+| `/clear` | Clear conversation (new base session) |
 | `/quit` or `/exit` | Exit |
 
-## Modes
+## Workflows
 
-- **feedback**: Review student drafts, suggest citations, verify data feasibility
-- **writing**: Help write papers with proper citations (load PDFs with /loadpaper)
-- **review**: Write review reports for manuscripts
-- **search**: Literature search, get BibTeX entries
+- Use `/load` once to load a draft (PDF, DOCX, MD, TXT).
+- Then trigger specific workflows with commands:
+  - `/review` to generate a reviewer-style report
+  - `/feedback` to generate a student-facing feedback report
+  - Normal chat for ad-hoc questions and literature search
 
 ## Providers
 
@@ -82,7 +84,8 @@ def print_help() -> None:
 
 ## Tips
 
-- Use `/load` for drafts (feedback/review) or `/loadpaper` for reference PDFs (writing)
+- Use `/load` for drafts, then `/review` or `/feedback` as needed
+- Use `/loadpaper` for reference PDFs in writing workflows
 - Supports PDF, DOCX, TXT, MD (PDF/DOCX require: `poetry install --with pdf`)
 - Use specific queries: "papers about market microstructure after 2020"
 - Ask for citations: "what papers support the claim that..."
@@ -92,34 +95,13 @@ def print_help() -> None:
 
 
 def select_mode() -> Literal["feedback", "writing", "review", "search"]:
-    """Interactive mode selection."""
-    console.print("\n[bold]Select a mode:[/bold]\n")
+    """Deprecated: interactive mode selection (kept for CLI compatibility).
 
-    modes = [
-        ("feedback", "Student Feedback", "Review drafts, suggest citations"),
-        ("writing", "Writing Assistance", "Help write papers with citations"),
-        ("review", "Review Reports", "Write reviewer reports"),
-        ("search", "Literature Search", "Find papers, get BibTeX"),
-    ]
-
-    table = Table(show_header=True, header_style="bold")
-    table.add_column("#", style="dim", width=3)
-    table.add_column("Mode", style="cyan")
-    table.add_column("Description")
-
-    for i, (key, name, desc) in enumerate(modes, 1):
-        table.add_row(str(i), name, desc)
-
-    console.print(table)
-
-    while True:
-        choice = console.input("\n[bold]Enter number (1-4):[/bold] ").strip()
-        if choice in ("1", "2", "3", "4"):
-            idx = int(choice) - 1
-            selected = modes[idx][0]
-            console.print(f"\n[green]Selected: {modes[idx][1]}[/green]\n")
-            return selected  # type: ignore
-        console.print("[red]Invalid choice. Enter 1-4.[/red]")
+    The CLI now starts in a neutral search-oriented mode by default.
+    Prefer using workflow commands like /review and /feedback instead
+    of selecting a global mode at startup.
+    """
+    return "search"  # type: ignore[return-value]
 
 
 def list_sessions(manager: SessionManager) -> None:
@@ -157,12 +139,13 @@ def load_file(filepath: str) -> tuple[str | None, dict | None]:
 
     Returns: (content, metadata) tuple
     """
-    from .pdf import parse_document, is_docling_available
+    from .pdf import is_docling_available, parse_document
 
     # Strip surrounding quotes (single or double) from the filepath
     filepath = filepath.strip()
-    if (filepath.startswith("'") and filepath.endswith("'")) or \
-       (filepath.startswith('"') and filepath.endswith('"')):
+    if (filepath.startswith("'") and filepath.endswith("'")) or (
+        filepath.startswith('"') and filepath.endswith('"')
+    ):
         filepath = filepath[1:-1]
 
     path = Path(filepath).expanduser()
@@ -199,32 +182,35 @@ def load_file(filepath: str) -> tuple[str | None, dict | None]:
 def show_stats(agent: ResearchAgent) -> None:
     """Show database statistics."""
     stats = agent.paper_db.get_stats()
-    
+
     console.print("\n[bold]Database Statistics[/bold]\n")
-    
+
     table = Table(show_header=False, box=None)
     table.add_column("Metric", style="cyan")
     table.add_column("Value")
-    
+
     table.add_row("Total papers", f"{stats['total_papers']:,}")
     table.add_row("Papers with abstracts", f"{stats['papers_with_abstracts']:,}")
-    
-    if stats['year_range']:
+
+    if stats["year_range"]:
         table.add_row("Year range", f"{stats['year_range'][0]} - {stats['year_range'][1]}")
-    
+
     # Vector search status
     if agent.paper_search.is_available:
-        table.add_row("Vector search", f"[green]✓ Enabled[/green] ({agent.paper_search.count_documents():,} embedded)")
+        table.add_row(
+            "Vector search",
+            f"[green]✓ Enabled[/green] ({agent.paper_search.count_documents():,} embedded)",
+        )
     else:
         table.add_row("Vector search", f"[yellow]✗ Not available[/yellow]")
-    
+
     console.print(table)
-    
-    if stats['top_journals']:
+
+    if stats["top_journals"]:
         console.print("\n[bold]Top Journals[/bold]")
-        for name, count in stats['top_journals']:
+        for name, count in stats["top_journals"]:
             console.print(f"  {name}: {count:,}")
-    
+
     console.print()
 
 
@@ -277,11 +263,8 @@ def main() -> None:
         mode = memory.mode
         console.print(f"[green]Resumed session {args.resume} ({mode} mode)[/green]")
     else:
-        # Mode selection
-        if args.mode:
-            mode = args.mode
-        else:
-            mode = select_mode()
+        # Start in a neutral default mode; workflows are driven by commands
+        mode = args.mode or "search"
         memory = ConversationMemory.new(mode=mode)
 
     # Initialize agent
@@ -348,7 +331,10 @@ def main() -> None:
                         mode = cmd_arg  # type: ignore
                         memory = ConversationMemory.new(mode=mode)
                         agent = ResearchAgent(mode=mode, memory=memory)  # type: ignore
-                        console.print(f"[green]Switched to {mode} mode[/green]")
+                        console.print(
+                            f"[green]Switched to persistent {mode} mode "
+                            f"(advanced; prefer /review and /feedback for one-shot workflows)[/green]"
+                        )
                     else:
                         console.print(
                             "[yellow]Usage: /mode <feedback|writing|review|search>[/yellow]"
@@ -374,11 +360,15 @@ def main() -> None:
                     if cmd_arg:
                         content, metadata = load_file(cmd_arg)
                         if content:
-                            result = agent.load_draft(content, name=Path(cmd_arg).name, metadata=metadata)
+                            result = agent.load_draft(
+                                content, name=Path(cmd_arg).name, metadata=metadata
+                            )
                             console.print(f"[green]{result}[/green]")
                     else:
                         console.print("[yellow]Usage: /load <filepath>[/yellow]")
-                        console.print("[dim]Supports: .txt, .md, .pdf, .docx (pdf/docx require docling)[/dim]")
+                        console.print(
+                            "[dim]Supports: .txt, .md, .pdf, .docx (pdf/docx require docling)[/dim]"
+                        )
 
                 elif cmd == "/loadpaper":
                     # Load a reference paper (for writing mode)
@@ -391,7 +381,85 @@ def main() -> None:
                             console.print(f"[green]{result}[/green]")
                     else:
                         console.print("[yellow]Usage: /loadpaper <filepath>[/yellow]")
-                        console.print("[dim]Load a PDF/document as a reference paper for writing mode[/dim]")
+                        console.print(
+                            "[dim]Load a PDF/document as a reference paper for writing mode[/dim]"
+                        )
+
+                elif cmd == "/review":
+                    if not memory.get_context("draft_loaded"):
+                        console.print(
+                            "[yellow]No draft loaded. Use /load <file> before running /review.[/yellow]"
+                        )
+                    else:
+                        source_memory = memory
+                        review_mode: Literal["review"] = "review"
+                        memory = ConversationMemory.new(mode=review_mode)
+                        for key in (
+                            "draft_loaded",
+                            "draft_name",
+                            "draft_content",
+                            "draft_metadata",
+                            "draft_sections",
+                            "draft_summary",
+                            "draft_excerpt",
+                            "eur_verification",
+                            "eur_refresh_result",
+                            "eur_verification_hash",
+                        ):
+                            value = source_memory.get_context(key)
+                            if value is not None:
+                                memory.set_context(key, value)
+                        agent = ResearchAgent(mode=review_mode, memory=memory)  # type: ignore
+                        console.print(f"[green]Started review session {memory.session_id}[/green]")
+                        review_prompt = (
+                            f"Run a structured review report on the loaded draft. {cmd_arg}"
+                            if cmd_arg
+                            else "Run a structured review report on the loaded draft."
+                        )
+                        console.print()
+                        with console.status("[bold green]Generating review...", spinner="dots"):
+                            response = agent.chat(review_prompt)
+                        console.print(Markdown(response))
+                        console.print()
+
+                elif cmd == "/feedback":
+                    if not memory.get_context("draft_loaded"):
+                        console.print(
+                            "[yellow]No draft loaded. Use /load <file> before running /feedback.[/yellow]"
+                        )
+                    else:
+                        source_memory = memory
+                        feedback_mode: Literal["feedback"] = "feedback"
+                        memory = ConversationMemory.new(mode=feedback_mode)
+                        for key in (
+                            "draft_loaded",
+                            "draft_name",
+                            "draft_content",
+                            "draft_metadata",
+                            "draft_sections",
+                            "draft_summary",
+                            "draft_excerpt",
+                            "eur_verification",
+                            "eur_refresh_result",
+                            "eur_verification_hash",
+                        ):
+                            value = source_memory.get_context(key)
+                            if value is not None:
+                                memory.set_context(key, value)
+                        agent = ResearchAgent(mode=feedback_mode, memory=memory)  # type: ignore
+                        console.print(
+                            f"[green]Started feedback session {memory.session_id}[/green]"
+                        )
+                        feedback_prompt = (
+                            f"Run a structured student-facing feedback report on the loaded draft. {cmd_arg}"
+                            if cmd_arg
+                            else "Run a structured student-facing feedback report on the loaded draft."
+                        )
+                        console.print()
+                        with console.status("[bold green]Generating feedback...", spinner="dots"):
+                            response = agent.chat(feedback_prompt)
+                        console.print(Markdown(response))
+                        console.print()
 
                 elif cmd == "/papers":
                     # Show loaded reference papers
@@ -430,9 +498,27 @@ def main() -> None:
                 elif cmd == "/stats":
                     show_stats(agent)
 
+                elif cmd == "/info":
+                    # Show basic session and draft status
+                    draft_loaded = memory.get_context("draft_loaded") or False
+                    draft_name = memory.get_context("draft_name") or "None"
+                    mode_label = mode
+                    console.print(
+                        f"[dim]Session: {memory.session_id} | Base mode: {mode_label} | "
+                        f"Draft loaded: {'yes' if draft_loaded else 'no'} | "
+                        f"Draft name: {draft_name}[/dim]"
+                    )
+
                 elif cmd == "/provider":
                     if cmd_arg:
-                        valid = ["ollama", "ollama-cloud", "openrouter", "openai", "anthropic", "google"]
+                        valid = [
+                            "ollama",
+                            "ollama-cloud",
+                            "openrouter",
+                            "openai",
+                            "anthropic",
+                            "google",
+                        ]
                         parts = cmd_arg.split(maxsplit=1)
                         new_provider = parts[0]
                         new_model = parts[1] if len(parts) > 1 else None
