@@ -327,6 +327,7 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
             model=self.model,
             client=self.client,
             google_tool_wrappers=google_wrappers,
+            temperature=self.config.provider.temperature,
         )
 
     def switch_provider(self, provider: str, model: str | None = None) -> None:

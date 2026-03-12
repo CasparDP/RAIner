@@ -17,6 +17,8 @@ import openai as openai_sdk
 from google import genai
 from google.genai import types as google_types
 
+from .config import get_config
+
 
 @dataclass
 class ToolCall:
@@ -40,8 +42,9 @@ ProviderName = Literal[
 class ProviderAdapter(ABC):
     """Abstract adapter interface."""
 
-    def __init__(self, model: str) -> None:
+    def __init__(self, model: str, temperature: float = 0.3) -> None:
         self.model = model
+        self.temperature = temperature
 
     @abstractmethod
     def generate(
@@ -65,8 +68,8 @@ class OpenAIToolsMixin:
 
 
 class OllamaAdapter(ProviderAdapter, OpenAIToolsMixin):
-    def __init__(self, client: ollama.Client, model: str) -> None:
-        super().__init__(model=model)
+    def __init__(self, client: ollama.Client, model: str, temperature: float = 0.3) -> None:
+        super().__init__(model=model, temperature=temperature)
         self.client = client
 
     def generate(
@@ -76,20 +79,28 @@ class OllamaAdapter(ProviderAdapter, OpenAIToolsMixin):
             model=self.model,
             messages=messages,
             tools=self.get_openai_tools(tools),
+            options={"temperature": self.temperature},
         )
         message = response["message"]
         content = message.get("content", "")
         tool_calls = message.get("tool_calls")
         if not tool_calls:
             return content, None
-        normalized = [
-            ToolCall(
-                id=tc.get("id", tc["function"]["name"]),
-                name=tc["function"]["name"],
-                arguments=tc["function"].get("arguments", {}),
+        normalized = []
+        for tc in tool_calls:
+            args = tc["function"].get("arguments", {})
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except Exception:
+                    args = {}
+            normalized.append(
+                ToolCall(
+                    id=tc.get("id", tc["function"]["name"]),
+                    name=tc["function"]["name"],
+                    arguments=args,
+                )
             )
-            for tc in tool_calls
-        ]
         return content, normalized
 
     def format_tool_result(
@@ -99,8 +110,8 @@ class OllamaAdapter(ProviderAdapter, OpenAIToolsMixin):
 
 
 class OpenAIAdapter(ProviderAdapter, OpenAIToolsMixin):
-    def __init__(self, client: openai_sdk.OpenAI, model: str) -> None:
-        super().__init__(model=model)
+    def __init__(self, client: openai_sdk.OpenAI, model: str, temperature: float = 0.3) -> None:
+        super().__init__(model=model, temperature=temperature)
         self.client = client
 
     def generate(
@@ -110,6 +121,7 @@ class OpenAIAdapter(ProviderAdapter, OpenAIToolsMixin):
             model=self.model,
             messages=messages,
             tools=self.get_openai_tools(tools),
+            temperature=self.temperature,
         )
         message = response.choices[0].message
         content = message.content or ""
@@ -134,8 +146,10 @@ class OpenAIAdapter(ProviderAdapter, OpenAIToolsMixin):
 
 
 class AnthropicAdapter(ProviderAdapter):
-    def __init__(self, client: anthropic_sdk.Anthropic, model: str) -> None:
-        super().__init__(model=model)
+    def __init__(
+        self, client: anthropic_sdk.Anthropic, model: str, temperature: float = 0.3
+    ) -> None:
+        super().__init__(model=model, temperature=temperature)
         self.client = client
 
     def _get_anthropic_tools(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -196,6 +210,7 @@ class AnthropicAdapter(ProviderAdapter):
             system=system_content,
             messages=anthropic_messages,
             tools=self._get_anthropic_tools(tools),
+            temperature=self.temperature,
         )
 
         content = ""
@@ -223,8 +238,10 @@ class AnthropicAdapter(ProviderAdapter):
 class GoogleAdapter(ProviderAdapter):
     """Adapter for Google Gemini with automatic function calling."""
 
-    def __init__(self, client: genai.Client, model: str, tool_wrappers: list[Any]) -> None:
-        super().__init__(model=model)
+    def __init__(
+        self, client: genai.Client, model: str, tool_wrappers: list[Any], temperature: float = 0.3
+    ) -> None:
+        super().__init__(model=model, temperature=temperature)
         self.client = client
         self.tool_wrappers = tool_wrappers
 
@@ -275,6 +292,7 @@ class GoogleAdapter(ProviderAdapter):
         config = google_types.GenerateContentConfig(
             tools=tools,
             system_instruction=system_instruction,
+            generation_config=google_types.GenerationConfig(temperature=self.temperature),
         )
 
         chat = self.client.chats.create(
@@ -298,16 +316,25 @@ def create_provider_adapter(
     model: str,
     client: Any,
     google_tool_wrappers: list[Any] | None = None,
+    temperature: float | None = None,
 ) -> ProviderAdapter:
     """Factory for provider adapters."""
+    if temperature is None:
+        temperature = get_config().provider.temperature
+
     if provider in ("ollama", "ollama-cloud"):
-        return OllamaAdapter(client=client, model=model)
+        return OllamaAdapter(client=client, model=model, temperature=temperature)
     if provider in ("openai", "openrouter"):
-        return OpenAIAdapter(client=client, model=model)
+        return OpenAIAdapter(client=client, model=model, temperature=temperature)
     if provider == "anthropic":
-        return AnthropicAdapter(client=client, model=model)
+        return AnthropicAdapter(client=client, model=model, temperature=temperature)
     if provider == "google":
         if google_tool_wrappers is None:
             google_tool_wrappers = []
-        return GoogleAdapter(client=client, model=model, tool_wrappers=google_tool_wrappers)
+        return GoogleAdapter(
+            client=client,
+            model=model,
+            tool_wrappers=google_tool_wrappers,
+            temperature=temperature,
+        )
     raise ValueError(f"Unknown provider: {provider}")

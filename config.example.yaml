@@ -42,6 +42,7 @@ provider:
   #   - Use OpenAI model names: gpt-4o, gpt-4-turbo, etc.
   #
   model: qwen2.5:14b
+  temperature: 0.3
 
   # Provider-specific settings
   ollama:
