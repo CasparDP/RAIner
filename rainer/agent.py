@@ -225,7 +225,7 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
 
     def __init__(
         self,
-        mode: Literal["feedback", "writing", "review", "search"] = "feedback",
+        mode: Literal["feedback", "writing", "review", "search", "exam-review"] = "feedback",
         memory: ConversationMemory | None = None,
     ):
         self.config = get_config()
@@ -237,7 +237,9 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
         self.paper_search = PaperSearch(paper_db=self.paper_db)
 
         # Citation formatter based on mode
-        mode_config = getattr(self.config.modes, mode)
+        # Hyphenated mode names (e.g. "exam-review") map to underscore attrs ("exam_review")
+        _mode_attr = mode.replace("-", "_")
+        mode_config = getattr(self.config.modes, _mode_attr, self.config.modes.search)
         self.citation_formatter = CitationFormatter(
             style=mode_config.citation_style,
             include_reference_list=(mode_config.citation_style != "bibtex"),

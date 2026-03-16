@@ -41,8 +41,7 @@ provider:
   # For openai:
   #   - Use OpenAI model names: gpt-4o, gpt-4-turbo, etc.
   #
-  model: qwen2.5:14b
-  temperature: 0.3
+  model: qwen3.5:latest
 
   # Provider-specific settings
   ollama:
@@ -73,10 +72,10 @@ provider:
 # =============================================================================
 data:
   # Path to DuckDB file with paper metadata
-  duckdb_path: ~/Dropbox/Github Data/cite-hustle/DB/articles.duckdb
+  duckdb_path: "~/casparm2/Dropbox/Github Data/cite-hustle/DB/articles.duckdb"
 
   # Path to ChromaDB directory with embeddings
-  chroma_path: ~/Dropbox/Github Data/cite-hustle/DB/chroma
+  chroma_path: "~/casparm2/Dropbox/Github Data/cite-hustle/DB/chroma"
 
   # Collection name in ChromaDB
   chroma_collection: paper_abstracts

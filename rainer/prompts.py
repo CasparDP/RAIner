@@ -7,7 +7,7 @@ from typing import Literal
 
 from .config import get_config
 
-PromptMode = Literal["feedback", "writing", "review", "search"]
+PromptMode = Literal["feedback", "writing", "review", "search", "exam-review"]
 
 DEFAULT_PROMPT_DIR = Path(__file__).parent / "prompts"
 
@@ -16,6 +16,7 @@ PROMPT_FILES: dict[PromptMode, str] = {
     "writing": "writing.md",
     "review": "review.md",
     "search": "search.md",
+    "exam-review": "exam-review.md",
 }
 
 

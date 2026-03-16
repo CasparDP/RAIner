@@ -34,7 +34,7 @@ def print_welcome() -> None:
         Panel(
             "[bold blue]RAiner[/bold blue] - Research Assistant\n"
             "An open-source academic research assistant\n\n"
-            "Commands: /help, /load, /review, /feedback, /provider, /model, /sessions, /save, /refs, /quit",
+            "Commands: /help, /load, /review, /feedback, /exam-review, /provider, /model, /sessions, /save, /refs, /quit",
             title="Welcome",
             border_style="blue",
         )
@@ -53,10 +53,11 @@ def print_help() -> None:
 | `/model <name>` | Switch model |
 | `/sessions` | List recent sessions |
 | `/resume <id>` | Resume a previous session |
-| `/load <file>` | Load a draft/document (PDF, DOCX, MD, TXT) |
+| `/load <file>` | Load a document (PDF, DOCX, XLSX, MD, TXT) |
 | `/loadpaper <file>` | Load a reference paper (PDF) for writing mode |
 | `/review [extra prompt]` | Run a structured review workflow on the loaded draft |
 | `/feedback [extra prompt]` | Run a structured student feedback report on the loaded draft |
+| `/exam-review [extra prompt]` | Run a structured exam quality review on the loaded exam |
 | `/papers` | Show loaded reference papers |
 | `/save [filename]` | Save conversation to a Quarto/Markdown file (default `.qmd`) |
 | `/refs` | Show current reference list |
@@ -67,10 +68,11 @@ def print_help() -> None:
 
 ## Workflows
 
-- Use `/load` once to load a draft (PDF, DOCX, MD, TXT).
+- Use `/load` once to load a document (PDF, DOCX, XLSX, MD, TXT).
 - Then trigger specific workflows with commands:
   - `/review` to generate a reviewer-style report
   - `/feedback` to generate a student-facing feedback report
+  - `/exam-review` to review an exam for ambiguities and missing ingredients
   - Normal chat for ad-hoc questions and literature search
 
 ## Providers
@@ -86,7 +88,7 @@ def print_help() -> None:
 
 - Use `/load` for drafts, then `/review` or `/feedback` as needed
 - Use `/loadpaper` for reference PDFs in writing workflows
-- Supports PDF, DOCX, TXT, MD (PDF/DOCX require: `poetry install --with pdf`)
+- Supports PDF, DOCX, XLSX, TXT, MD (PDF/DOCX/XLSX require: `poetry install --with pdf`)
 - Use specific queries: "papers about market microstructure after 2020"
 - Ask for citations: "what papers support the claim that..."
 - Switch providers: `/provider openai gpt-4o`
@@ -223,7 +225,7 @@ def main() -> None:
     parser.add_argument(
         "-m",
         "--mode",
-        choices=["feedback", "writing", "review", "search"],
+        choices=["feedback", "writing", "review", "search", "exam-review"],
         help="Start in specific mode",
     )
     parser.add_argument(
@@ -367,7 +369,7 @@ def main() -> None:
                     else:
                         console.print("[yellow]Usage: /load <filepath>[/yellow]")
                         console.print(
-                            "[dim]Supports: .txt, .md, .pdf, .docx (pdf/docx require docling)[/dim]"
+                            "[dim]Supports: .txt, .md, .pdf, .docx, .xlsx (pdf/docx/xlsx require docling)[/dim]"
                         )
 
                 elif cmd == "/loadpaper":
@@ -458,6 +460,45 @@ def main() -> None:
                         console.print()
                         with console.status("[bold green]Generating feedback...", spinner="dots"):
                             response = agent.chat(feedback_prompt)
+                        console.print(Markdown(response))
+                        console.print()
+
+                elif cmd == "/exam-review":
+                    if not memory.get_context("draft_loaded"):
+                        console.print(
+                            "[yellow]No exam loaded. Use /load <file> before running /exam-review.[/yellow]"
+                        )
+                        console.print(
+                            "[dim]Supports: .pdf, .docx, .xlsx, .txt, .md[/dim]"
+                        )
+                    else:
+                        source_memory = memory
+                        exam_review_mode: Literal["exam-review"] = "exam-review"
+                        memory = ConversationMemory.new(mode=exam_review_mode)
+                        for key in (
+                            "draft_loaded",
+                            "draft_name",
+                            "draft_content",
+                            "draft_metadata",
+                            "draft_sections",
+                            "draft_summary",
+                            "draft_excerpt",
+                        ):
+                            value = source_memory.get_context(key)
+                            if value is not None:
+                                memory.set_context(key, value)
+                        agent = ResearchAgent(mode=exam_review_mode, memory=memory)  # type: ignore
+                        console.print(
+                            f"[green]Started exam-review session {memory.session_id}[/green]"
+                        )
+                        exam_prompt = (
+                            f"Run a structured exam quality review on the loaded exam. {cmd_arg}"
+                            if cmd_arg
+                            else "Run a structured exam quality review on the loaded exam."
+                        )
+                        console.print()
+                        with console.status("[bold green]Reviewing exam...", spinner="dots"):
+                            response = agent.chat(exam_prompt)
                         console.print(Markdown(response))
                         console.print()
 

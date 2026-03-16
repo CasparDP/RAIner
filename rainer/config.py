@@ -101,6 +101,9 @@ class ModesConfig(BaseModel):
     )
     review: ModeConfig = Field(default_factory=lambda: ModeConfig(citation_style="bibtex"))
     search: ModeConfig = Field(default_factory=lambda: ModeConfig(citation_style="bibtex"))
+    exam_review: ModeConfig = Field(
+        default_factory=lambda: ModeConfig(citation_style="inline", bibtex_output=False)
+    )
 
 
 class OutputConfig(BaseModel):
