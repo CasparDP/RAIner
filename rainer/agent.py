@@ -939,7 +939,11 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                 "I. Clarifying questions",
             ]
         elif self.mode == "review":
-            required = ["Major issues", "Minor issues"]
+            required = [
+                "Section 1",
+                "Section 2",
+                "Section 3",
+            ]
         else:
             return []
 
