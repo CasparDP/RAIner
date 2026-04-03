@@ -56,7 +56,7 @@ class ProviderConfig(BaseModel):
         "ollama"
     )
     model: str = "kimi-k2.5:cloud"
-    temperature: float = 0.3
+    temperature: float = 0.1
     # model: str = "qwen2.5:14b"  # Local Ollama model format
     # model: str = "gpt-oss:120b-cloud"  # Ollama cloud model (via local relay)
     # model: str = "gpt-oss:120b"  # Ollama cloud model (via direct API)

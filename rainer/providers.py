@@ -42,7 +42,7 @@ ProviderName = Literal[
 class ProviderAdapter(ABC):
     """Abstract adapter interface."""
 
-    def __init__(self, model: str, temperature: float = 0.3) -> None:
+    def __init__(self, model: str, temperature: float = 0.1) -> None:
         self.model = model
         self.temperature = temperature
 
@@ -110,7 +110,7 @@ class OllamaAdapter(ProviderAdapter, OpenAIToolsMixin):
 
 
 class OpenAIAdapter(ProviderAdapter, OpenAIToolsMixin):
-    def __init__(self, client: openai_sdk.OpenAI, model: str, temperature: float = 0.3) -> None:
+    def __init__(self, client: openai_sdk.OpenAI, model: str, temperature: float = 0.1) -> None:
         super().__init__(model=model, temperature=temperature)
         self.client = client
 
@@ -147,7 +147,7 @@ class OpenAIAdapter(ProviderAdapter, OpenAIToolsMixin):
 
 class AnthropicAdapter(ProviderAdapter):
     def __init__(
-        self, client: anthropic_sdk.Anthropic, model: str, temperature: float = 0.3
+        self, client: anthropic_sdk.Anthropic, model: str, temperature: float = 0.1
     ) -> None:
         super().__init__(model=model, temperature=temperature)
         self.client = client
@@ -239,7 +239,7 @@ class GoogleAdapter(ProviderAdapter):
     """Adapter for Google Gemini with automatic function calling."""
 
     def __init__(
-        self, client: genai.Client, model: str, tool_wrappers: list[Any], temperature: float = 0.3
+        self, client: genai.Client, model: str, tool_wrappers: list[Any], temperature: float = 0.1
     ) -> None:
         super().__init__(model=model, temperature=temperature)
         self.client = client
