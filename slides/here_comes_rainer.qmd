@@ -1,0 +1,278 @@
+---
+title: "Here Comes RAIner"
+subtitle: "An Open-Source Research Assistant for Academic Work"
+---
+
+## What is RAIner?
+
+A **local-first research assistant** that helps academics with:
+
+- Reviewing student drafts (structured feedback reports)
+- Writing papers with proper citations
+- Searching and discovering literature
+- Verifying data availability for research designs
+
+. . .
+
+RAIner does **not** train models or provide a framework.
+It is a finished, domain-specific application.
+
+## The Problem
+
+Giving structured feedback on student proposals is repetitive and time-consuming:
+
+:::: {.columns}
+::: {.column width="50%"}
+**Without RAIner**
+
+1. Read draft
+2. Search for relevant literature
+3. Check data availability
+4. Write structured feedback
+5. Format citations
+6. Repeat for 30+ students
+:::
+
+::: {.column width="50%"}
+**With RAIner**
+
+```bash
+rainer batch feedback \
+  submissions/*.pdf \
+  --workers 3
+```
+
+One command. All reports. Parallel.
+:::
+::::
+
+## How RAIner Works
+
+```{mermaid}
+%%| fig-width: 10
+flowchart LR
+    subgraph Input
+        PDF["PDF / DOCX / TXT"]
+    end
+
+    subgraph RAIner
+        direction TB
+        Load["Parse document"]
+        Agent["LLM Agent\n(tool-calling loop)"]
+        Save["Auto-save .qmd"]
+        Load --> Agent --> Save
+    end
+
+    subgraph Data["Data Layer"]
+        direction TB
+        DuckDB["DuckDB\n(paper metadata)"]
+        Chroma["ChromaDB\n(semantic search)"]
+        EUR["EUR Database\n(access verification)"]
+    end
+
+    subgraph Output
+        QMD[".qmd report"]
+    end
+
+    PDF --> Load
+    Agent <--> Data
+    Save --> QMD
+```
+
+## Under the Hood
+
+The core is a **tool-calling agent loop** (up to 15 iterations):
+
+1. Build a system prompt from mode-specific templates + loaded draft context
+2. Send to the LLM (any supported provider)
+3. If the LLM requests a tool call: execute it, return result, loop
+4. If not: check for missing sections, return structured response
+
+. . .
+
+Tools available to the LLM:
+
+| Tool | Purpose |
+|------|---------|
+| `search_papers` | Semantic + keyword search over paper database |
+| `get_paper_details` | Retrieve full metadata for a DOI |
+| `format_citation` | Format inline, Quarto, or BibTeX citations |
+| `search_eur_databases` | Verify database access at EUR |
+| `save_output` | Write results to .qmd file |
+
+## Anti-Hallucination Guardrails
+
+RAIner enforces two rule sets injected into every system prompt:
+
+. . .
+
+**Citation Rules**
+
+- Only cite papers returned by `search_papers` in this session
+- Never fabricate citations, DOIs, or author names
+- Search first, then cite
+
+. . .
+
+**Data Source Rules**
+
+- Never claim a database is available unless verified via `search_eur_databases`
+- Label all data claims as VERIFIED / UNVERIFIED / ASSUMED
+- Propose alternatives for unavailable databases
+
+## Structured Output Enforcement
+
+In feedback mode, the agent must produce **9 mandatory sections**:
+
+:::: {.columns}
+::: {.column width="50%"}
+A. Executive summary
+B. Understanding of the study
+C. Strengths
+D. Risks / threats to validity
+E. Data & Feasibility Audit
+:::
+
+::: {.column width="50%"}
+F. Methods & identification
+G. Literature & citations needed
+H. Revision checklist (10-15 items)
+I. Clarifying questions
+:::
+::::
+
+. . .
+
+If the LLM omits any section, RAIner automatically sends a follow-up request to fill the gaps.
+
+## Provider Flexibility
+
+RAIner is **model-agnostic**: swap providers at runtime.
+
+| Provider | Local? | Example Models |
+|----------|--------|----------------|
+| Ollama | Yes | Qwen 2.5, Llama 3 |
+| Ollama Cloud | No | Kimi K2 |
+| OpenAI | No | GPT-4o |
+| Anthropic | No | Claude Sonnet |
+| Google | No | Gemini 2.0 Flash |
+| OpenRouter | No | Any supported model |
+
+. . .
+
+All providers are normalized through a single `ProviderAdapter` interface,
+so the agent logic stays model-agnostic.
+
+## Batch Processing
+
+Process an entire class of submissions in one command:
+
+```bash
+rainer batch feedback submissions/*.pdf --workers 3
+```
+
+```{mermaid}
+%%| fig-width: 10
+flowchart LR
+    Files["submissions/*.pdf"] --> Batch["rainer batch"]
+
+    Batch --> W1["Worker 1\nstudent_a.pdf"]
+    Batch --> W2["Worker 2\nstudent_b.pdf"]
+    Batch --> W3["Worker 3\nstudent_c.pdf"]
+
+    W1 --> O1["student_a.qmd"]
+    W2 --> O2["student_b.qmd"]
+    W3 --> O3["student_c.qmd"]
+```
+
+Each worker runs its own agent, memory, and database connections.
+Student name and draft title are parsed from the filename into YAML frontmatter.
+
+## Where RAIner Sits: Not a Framework, Not a Model
+
+```{mermaid}
+%%| fig-width: 10
+flowchart TB
+    subgraph Upstream["Upstream: Model Training"]
+        nano["nanochat\n(Karpathy)"]
+    end
+
+    subgraph Middleware["Middleware: Agent Frameworks"]
+        pico["picoagent(s)"]
+    end
+
+    subgraph Downstream["Downstream: Domain Applications"]
+        rainer["RAIner"]
+    end
+
+    nano -- "produces models" --> Middleware
+    pico -- "provides scaffolding" --> Downstream
+
+    style rainer fill:#4a9,stroke:#333,color:#fff
+    style nano fill:#888,stroke:#333,color:#fff
+    style pico fill:#888,stroke:#333,color:#fff
+```
+
+## RAIner vs. nanochat vs. picoagent
+
+|  | nanochat | picoagent(s) | RAIner |
+|---|---|---|---|
+| **What** | LLM training pipeline | General agent framework | Research assistant app |
+| **Trains models?** | Yes (from scratch) | No | No |
+| **Framework?** | No (training harness) | Yes | No (finished app) |
+| **Domain** | General | General | Academic research |
+| **Tools** | None | Bring your own | Paper search, citations, DB verification |
+| **Data layer** | Training datasets | None built-in | DuckDB + ChromaDB |
+| **Output** | A trained model | Agent responses | Structured .qmd reports |
+
+## Architecture Summary
+
+:::: {.columns}
+::: {.column width="60%"}
+```
+rainer/
+  cli.py          # Interactive + batch entry
+  agent.py        # Tool-calling loop
+  batch.py        # Parallel processing
+  providers.py    # LLM adapters
+  prompts.py      # Mode-specific templates
+  papers.py       # DuckDB interface
+  search.py       # ChromaDB vector search
+  citations.py    # Citation formatting
+  output.py       # .qmd generation
+  mcp_server.py   # MCP server
+```
+:::
+
+::: {.column width="40%"}
+**Key design choices:**
+
+- Read-only database access
+- Hand-rolled agent loop (no framework dependency)
+- Structured output with section enforcement
+- Provider-agnostic adapter pattern
+- Quarto-native output (.qmd)
+:::
+::::
+
+## Getting Started
+
+```bash
+# Install
+git clone https://github.com/yourusername/RAiner.git
+cd RAiner && poetry install
+
+# Configure
+cp config.example.yaml ~/.config/rainer/config.yaml
+
+# Interactive mode
+rainer --load draft.pdf
+/feedback
+
+# Batch mode
+rainer batch feedback *.pdf --workers 3
+```
+
+. . .
+
+RAIner is open-source (MIT). Contributions welcome.

@@ -74,3 +74,6 @@ Thumbs.db
 # Temporary/stray folders
 rainer/mnt/
 rainer/config.example.yaml
+
+/.quarto/
+**/*.quarto_ipynb
