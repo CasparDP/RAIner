@@ -61,6 +61,7 @@ sessions/
 
 # Output
 output/
+!output/_quarto.yml
 
 # Meetings
 01-meeting/

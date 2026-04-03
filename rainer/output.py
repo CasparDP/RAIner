@@ -59,13 +59,10 @@ class MarkdownWriter:
         """Build the complete markdown document."""
         lines = []
 
-        # YAML frontmatter
-        if self._metadata:
+        # YAML frontmatter (format/author/date defaults come from _quarto.yml)
+        if self._metadata or self._title != "Untitled":
             lines.append("---")
-            # Inject Quarto format hint using nested Quarto config
-            # Prefer pdf output, but allow overriding via metadata if provided
-            lines.append("format:")
-            lines.append("  pdf: default")
+            lines.append(f"title: \"{self._title}\"")
             for key, value in self._metadata.items():
                 # Handle multiline values
                 if "\n" in value:
@@ -73,13 +70,9 @@ class MarkdownWriter:
                     for line in value.split("\n"):
                         lines.append(f"  {line}")
                 else:
-                    lines.append(f"{key}: {value}")
+                    lines.append(f"{key}: \"{value}\"")
             lines.append("---")
             lines.append("")
-
-        # Title
-        lines.append(f"# {self._title}")
-        lines.append("")
 
         # Sections
         for heading, content in self._sections:
