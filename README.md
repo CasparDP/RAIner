@@ -6,7 +6,8 @@ RAiner generates outputs as Quarto-compatible Markdown files (`.qmd`) by default
 
 ## Features
 
-- **Multiple modes**: Student feedback, writing assistance, review reports, literature search
+- **Multiple modes**: Student feedback, writing assistance, review reports, exam review, literature search
+- **Batch processing**: Process multiple student submissions in parallel (`rainer batch feedback *.pdf`)
 - **Vector search**: Find relevant papers using semantic search via ChromaDB
 - **Fallback search**: Works with keyword search even before embeddings are created
 - **Citation management**: Automatic formatting in multiple styles (inline, Quarto, BibTeX)
@@ -15,7 +16,8 @@ RAiner generates outputs as Quarto-compatible Markdown files (`.qmd`) by default
 - **Anti-hallucination controls**: Only cite papers from search results, verify database access claims
 - **Session persistence**: Save and resume conversations
 - **Provider flexibility**: Ollama (local/cloud), OpenAI, Anthropic, Google Gemini, OpenRouter
-- **File output**: Generate markdown reports with proper citations
+- **MCP server**: Expose RAiner tools to Claude Desktop and other MCP-compatible clients
+- **File output**: Generate Quarto markdown reports with proper citations
 
 ## Installation
 
@@ -80,14 +82,72 @@ This installs [docling](https://github.com/docling-project/docling) for parsing 
 ### 5. Run RAiner
 
 ```bash
+# Interactive mode
 poetry run rainer
+
+# Batch mode (process multiple files)
+poetry run rainer batch feedback submissions/*.pdf --workers 3
+
+# MCP server (for Claude Desktop)
+poetry run rainer-mcp
 ```
 
 By default, RAiner saves reports as Quarto `.qmd` files, which are standard Markdown plus optional Quarto metadata. You can change the default extension in your config or pass a custom filename to `/save`.
 
+## How It Works
+
+```mermaid
+flowchart LR
+    subgraph Input
+        PDF["PDF / DOCX / TXT"]
+    end
+
+    subgraph RAiner
+        direction TB
+        Load["Load & parse document"]
+        Agent["LLM Agent"]
+        Tools["Tool calls"]
+        Save["Auto-save .qmd"]
+
+        Load --> Agent
+        Agent <--> Tools
+        Agent --> Save
+    end
+
+    subgraph Tools[ ]
+        direction TB
+        Search["Search papers\n(ChromaDB / DuckDB)"]
+        Cite["Format citations"]
+        EUR["Verify EUR databases"]
+    end
+
+    subgraph Output
+        QMD[".qmd report\n(Quarto-compatible)"]
+    end
+
+    PDF --> Load
+    Save --> QMD
+```
+
+**Interactive mode** processes one document at a time through the chat interface.
+**Batch mode** runs the same pipeline on multiple files in parallel, each in its own worker process:
+
+```mermaid
+flowchart LR
+    Files["*.pdf"] --> Batch["rainer batch feedback"]
+
+    Batch --> W1["Worker 1\nfile1.pdf"]
+    Batch --> W2["Worker 2\nfile2.pdf"]
+    Batch --> W3["Worker 3\nfile3.pdf"]
+
+    W1 --> O1["file1.qmd"]
+    W2 --> O2["file2.qmd"]
+    W3 --> O3["file3.qmd"]
+```
+
 ## Usage
 
-### Start the assistant
+### Interactive Mode
 
 ```bash
 # Start RAiner
@@ -102,6 +162,26 @@ rainer --resume abc123
 # Load a document directly at startup
 rainer --load draft.pdf
 ```
+
+### Batch Mode
+
+Process multiple files non-interactively with automatic .qmd output:
+
+```bash
+# Process all PDFs in a folder with 3 parallel workers
+rainer batch feedback submissions/*.pdf --workers 3
+
+# Sequential processing with a specific provider
+rainer batch feedback draft1.pdf draft2.pdf -w 1 -p anthropic --model claude-sonnet-4-20250514
+
+# Add extra instructions to the prompt
+rainer batch feedback *.pdf -e "Focus on methodology and data feasibility"
+
+# Custom output directory
+rainer batch feedback *.pdf -o ./graded/
+```
+
+Each file gets its own session, agent, and output .qmd file. The filename's student name and draft title are automatically parsed into the YAML frontmatter.
 
 ### Commands
 
@@ -214,19 +294,29 @@ RAiner/
 ├── README.md
 ├── CLAUDE.md               # Developer documentation
 └── rainer/                 # Python package (lowercase!)
-    ├── __init__.py
-    ├── cli.py              # Terminal interface
-    ├── agent.py            # Core agent with tool calling
-    ├── config.py           # Configuration management
-    ├── memory.py           # Session persistence
-    ├── papers.py           # DuckDB interface
+    ├── cli.py              # Terminal interface & argument parsing
+    ├── agent.py            # Core agent with tool calling loop
+    ├── batch.py            # Batch processing (parallel feedback/review)
+    ├── config.py           # Pydantic configuration management
+    ├── providers.py        # LLM provider adapters (Ollama, OpenAI, Anthropic, Google)
+    ├── prompts.py          # Prompt loading (mode -> markdown template)
+    ├── memory.py           # Session persistence (JSON)
+    ├── papers.py           # DuckDB interface for paper metadata
     ├── search.py           # ChromaDB vector search
-    ├── citations.py        # Citation formatting
-    ├── output.py           # Quarto/Markdown (.qmd) output
-    ├── chunking.py         # Document chunking
+    ├── pdf.py              # Document parsing via docling (optional)
+    ├── citations.py        # Citation formatting (inline, Quarto, BibTeX)
+    ├── output.py           # Quarto/Markdown (.qmd) file generation
+    ├── chunking.py         # Large document splitting
     ├── embed.py            # Embedding creation script
-    └── data/
-        └── eur_databases.json  # EUR library database list
+    ├── mcp_server.py       # MCP server for Claude Desktop integration
+    ├── data/
+    │   └── eur_databases.json  # EUR library database list
+    └── prompts/            # System prompt templates per mode
+        ├── feedback.md
+        ├── writing.md
+        ├── review.md
+        ├── search.md
+        └── exam-review.md
 ```
 
 ## Development
@@ -250,6 +340,8 @@ poetry run ruff check --fix .
 - [x] EUR database verification tools
 - [x] Data feasibility audits in feedback mode
 - [x] PDF parsing via docling integration
+- [x] Batch processing for multiple submissions
+- [x] MCP server for Claude Desktop integration
 - [ ] Export to Word documents
 
 ## License

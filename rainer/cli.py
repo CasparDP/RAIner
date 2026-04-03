@@ -133,11 +133,15 @@ def list_sessions(manager: SessionManager) -> None:
     console.print(table)
 
 
-def load_file(filepath: str) -> tuple[str | None, dict | None]:
-    """
-    Load a file and return its contents.
+class LoadError(Exception):
+    """Raised when a file cannot be loaded."""
+
+
+def load_file_raw(filepath: str) -> tuple[str, dict | None]:
+    """Load a file and return its contents.
 
     Supports PDF, DOCX, and text formats via docling (if installed).
+    Raises LoadError on failure instead of printing to console.
 
     Returns: (content, metadata) tuple
     """
@@ -152,33 +156,45 @@ def load_file(filepath: str) -> tuple[str | None, dict | None]:
 
     path = Path(filepath).expanduser()
     if not path.exists():
-        console.print(f"[red]File not found: {filepath}[/red]")
-        return None, None
+        raise LoadError(f"File not found: {filepath}")
 
     result = parse_document(path)
 
     if result.method == "docling_not_installed":
-        console.print(f"[yellow]PDF/DOCX parsing requires docling. Install with:[/yellow]")
-        console.print("[yellow]  poetry install --with pdf[/yellow]")
-        console.print(f"[dim]For text files, rename to .txt or .md[/dim]")
-        return None, None
+        raise LoadError(
+            "PDF/DOCX parsing requires docling. Install with: poetry install --with pdf"
+        )
 
     if result.method.startswith("error:"):
-        console.print(f"[red]Error reading file: {result.method}[/red]")
-        return None, None
+        raise LoadError(f"Error reading file: {result.method}")
 
     if result.method == "unsupported_format":
         supported = ".txt, .md, .tex"
         if is_docling_available():
             supported += ", .pdf, .docx, .pptx, .xlsx, .html"
-        console.print(f"[red]Unsupported file format: {path.suffix}[/red]")
-        console.print(f"[dim]Supported formats: {supported}[/dim]")
-        return None, None
-
-    if result.method == "docling":
-        console.print(f"[dim]Parsed {path.suffix} via docling[/dim]")
+        raise LoadError(f"Unsupported file format: {path.suffix} (supported: {supported})")
 
     return result.content, result.metadata
+
+
+def load_file(filepath: str) -> tuple[str | None, dict | None]:
+    """Load a file, printing errors to console.
+
+    Wrapper around load_file_raw for interactive use.
+    Returns: (content, metadata) tuple, or (None, None) on error.
+    """
+    try:
+        content, metadata = load_file_raw(filepath)
+        from .pdf import parse_document
+
+        path = Path(filepath.strip()).expanduser()
+        result = parse_document(path)
+        if result.method == "docling":
+            console.print(f"[dim]Parsed {path.suffix} via docling[/dim]")
+        return content, metadata
+    except LoadError as e:
+        console.print(f"[red]{e}[/red]")
+        return None, None
 
 
 def show_stats(agent: ResearchAgent) -> None:
@@ -221,6 +237,33 @@ def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(description="RAiner - Research Assistant")
+    subparsers = parser.add_subparsers(dest="command")
+
+    # --- Batch subcommand ---
+    batch_parser = subparsers.add_parser("batch", help="Batch process files non-interactively")
+    batch_parser.add_argument(
+        "workflow",
+        choices=["feedback", "review"],
+        help="Workflow to run on each file",
+    )
+    batch_parser.add_argument("files", nargs="+", help="Files to process")
+    batch_parser.add_argument(
+        "-e", "--extra-prompt", type=str, default="", help="Extra prompt appended to workflow"
+    )
+    batch_parser.add_argument(
+        "-w", "--workers", type=int, default=2, help="Parallel workers (default: 2)"
+    )
+    batch_parser.add_argument("-o", "--output-dir", type=str, help="Override output directory")
+    batch_parser.add_argument("-c", "--config", type=str, help="Path to config file")
+    batch_parser.add_argument(
+        "-p",
+        "--provider",
+        choices=["ollama", "ollama-cloud", "openrouter", "openai", "anthropic", "google"],
+        help="LLM provider to use",
+    )
+    batch_parser.add_argument("--model", type=str, help="Model name (overrides config default)")
+
+    # --- Default interactive mode (no subcommand) ---
     parser.add_argument("-c", "--config", type=str, help="Path to config file")
     parser.add_argument(
         "-m",
@@ -239,6 +282,22 @@ def main() -> None:
     parser.add_argument("-l", "--load", type=str, help="Load a document file")
 
     args = parser.parse_args()
+
+    # --- Route to batch mode ---
+    if args.command == "batch":
+        from .batch import run_batch
+
+        run_batch(
+            workflow=args.workflow,
+            files=args.files,
+            extra_prompt=args.extra_prompt,
+            workers=args.workers,
+            config_path=args.config,
+            provider=args.provider,
+            model=args.model,
+            output_dir=args.output_dir,
+        )
+        return
 
     # Load config
     config = load_config(args.config) if args.config else load_config()

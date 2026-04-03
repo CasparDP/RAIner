@@ -22,6 +22,8 @@ RAiner/
     ├── cli.py              # Terminal UI entry point
     ├── agent.py            # Core agent with tool calling loop
     ├── config.py           # Pydantic configuration management
+    ├── providers.py        # LLM provider adapters (Ollama, OpenAI, Anthropic, Google, OpenRouter)
+    ├── prompts.py          # Prompt loading utilities (resolves mode -> markdown file)
     ├── memory.py           # Session persistence (JSON files)
     ├── papers.py           # DuckDB interface for paper metadata
     ├── search.py           # ChromaDB vector search
@@ -30,52 +32,26 @@ RAiner/
     ├── output.py           # Quarto/Markdown (.qmd) file generation with YAML frontmatter
     ├── chunking.py         # Large document splitting
     ├── embed.py            # Script to create ChromaDB embeddings
-    └── data/
-        └── eur_databases.json  # EUR library database access list
+    ├── batch.py            # Batch processing (parallel feedback/review on multiple files)
+    ├── mcp_server.py       # MCP server exposing RAiner tools (FastMCP-based)
+    ├── data/
+    │   └── eur_databases.json  # EUR library database access list (curated)
+    └── prompts/            # Mode-specific system prompt templates (Markdown)
+        ├── feedback.md
+        ├── writing.md
+        ├── review.md
+        ├── search.md
+        └── exam-review.md
 ```
 
 ## Database Schema
 
-The DuckDB database (`articles.duckdb`) has these tables:
+The DuckDB database (`articles.duckdb`) has three tables:
 
-### `articles` (main paper metadata)
-| Column | Type | Description |
-|--------|------|-------------|
-| doi | VARCHAR | Primary key |
-| title | VARCHAR | Paper title |
-| authors | VARCHAR | Author names |
-| year | INTEGER | Publication year |
-| journal_issn | VARCHAR | Journal ISSN |
-| journal_name | VARCHAR | Journal name |
-| publisher | VARCHAR | Publisher name |
-| created_at | TIMESTAMP | Record creation |
-| updated_at | TIMESTAMP | Record update |
-
-### `ssrn_pages` (SSRN-specific data, joined via DOI)
-| Column | Type | Description |
-|--------|------|-------------|
-| doi | VARCHAR | Primary key, links to articles |
-| ssrn_url | VARCHAR | Full SSRN page URL |
-| ssrn_id | VARCHAR | SSRN paper ID |
-| abstract | VARCHAR | Paper abstract |
-| pdf_url | VARCHAR | Link to PDF |
-| pdf_downloaded | BOOLEAN | Whether PDF was downloaded |
-| pdf_file_path | VARCHAR | Local path to PDF |
-| match_score | INTEGER | Matching confidence |
-| scraped_at | TIMESTAMP | When scraped |
-| error_message | VARCHAR | Any scraping errors |
-
-### `journals` (journal metadata)
-| Column | Type | Description |
-|--------|------|-------------|
-| issn | VARCHAR | Primary key |
-| name | VARCHAR | Journal name |
-| field | VARCHAR | Research field |
-| publisher | VARCHAR | Publisher |
-
-### FTS Indexes
-- `fts_main_articles` - Full-text search on articles
-- `fts_main_ssrn_pages` - Full-text search on SSRN pages
+- **`articles`**: Main paper metadata (DOI as PK, title, authors, year, journal info, timestamps)
+- **`ssrn_pages`**: SSRN-specific data joined via DOI (abstract, URLs, PDF paths, match score)
+- **`journals`**: Journal metadata (ISSN as PK, name, field, publisher)
+- **FTS indexes**: `fts_main_articles`, `fts_main_ssrn_pages`
 
 ## Key Components
 
@@ -92,14 +68,35 @@ The DuckDB database (`articles.duckdb`) has these tables:
 - Methods: `search(query)`, `search_multiple(queries)`, `find_similar_to_paper(doi)`
 
 ### `agent.py` - ResearchAgent
-- Core agent loop with multi-provider tool calling
-- Supported providers: ollama, ollama-cloud, openai, openrouter, anthropic, google
+- Core agent loop with tool calling; delegates LLM calls to `providers.py` adapters
 - Tools: `search_papers`, `get_paper_details`, `format_citation`, `save_output`, `refresh_eur_database_index`, `search_eur_databases`
-- System prompts per mode: feedback, writing, review, search
+- System prompts loaded via `prompts.py` per mode
 - Anti-hallucination rules: `CITATION_RULES` and `DATA_SOURCE_RULES`
-- EUR database verification via `rainer/data/eur_databases.json` (43 databases tracked)
+- EUR database verification via `rainer/data/eur_databases.json` (curated list; **note**: this file must be created/populated manually)
 - Tracks citations via `CitationFormatter`
 - Runtime provider switching via `switch_provider()`
+
+### `providers.py` - Provider Adapters
+- Abstract `ProviderAdapter` base class with `generate()` and `format_tool_result()`
+- Concrete adapters: `OllamaAdapter`, `OpenAIAdapter`, `AnthropicAdapter`, `GoogleAdapter`
+- `OpenAIToolsMixin` shared by Ollama and OpenAI for tool schema formatting
+- Canonical `ToolCall` dataclass normalizes provider-specific responses
+
+### `prompts.py` - Prompt Loading
+- Loads mode-specific system prompts from `rainer/prompts/*.md`
+- Valid modes: `feedback`, `writing`, `review`, `search`, `exam-review`
+- Supports config override for prompt directory via `output.prompt_dir`
+
+### `mcp_server.py` - MCP Server
+- Exposes RAiner paper search, retrieval, and citation tools via FastMCP
+- Entry point: `poetry run rainer-mcp`
+- Tools mirror the agent's tool set (search, get paper, format citation, etc.)
+
+### `batch.py` - Batch Processing
+- `rainer batch feedback *.pdf --workers 3`: non-interactive bulk feedback/review
+- `process_single_file()` runs in a worker process (own config, agent, memory)
+- `ProcessPoolExecutor` for parallelism; `--workers 1` for sequential
+- Auto-saves .qmd per file with student_name/draft_title from `_parse_draft_name()`
 
 ### `memory.py` - Session Management
 - Sessions stored as JSON in `~/.local/share/rainer/sessions/`
@@ -108,6 +105,8 @@ The DuckDB database (`articles.duckdb`) has these tables:
 
 ### `cli.py` - Terminal Interface
 - Uses `rich` for formatting, `prompt_toolkit` for input
+- Subcommand routing: `rainer batch ...` routes to `batch.py`; no subcommand enters interactive mode
+- `load_file_raw()` raises `LoadError` on failure (used by batch); `load_file()` wraps it with console output (interactive)
 - Workflow-oriented commands:
   - `/load <file>`: load a draft/document (PDF, DOCX, MD, TXT) into the base session
   - `/review [extra prompt]`: run a one-shot structured reviewer-style report on the loaded draft (creates a dedicated `review` session, copies draft context)
@@ -179,33 +178,18 @@ poetry run rainer-embed \
 
 # Run
 poetry run rainer
+
+# Run as MCP server (for Claude Desktop / MCP-compatible clients)
+poetry run rainer-mcp
+
+# Batch process multiple files
+rainer batch feedback submissions/*.pdf --workers 3
+rainer batch feedback *.pdf -e "Focus on methodology" -p anthropic
 ```
 
-## Tool Calling Schema
+## Agent Tools
 
-The agent exposes these tools to the LLM:
-
-```python
-search_papers(query: str, top_k: int = 10, year_min: int = None, year_max: int = None)
-# Returns: list of {id, title, authors, year, relevance_score, abstract_snippet}
-
-get_paper_details(paper_id: str)  # paper_id is DOI
-# Returns: {id, title, authors, year, abstract, doi, ssrn_id, doi_url, ssrn_url}
-
-format_citation(paper_id: str)
-# Returns: {citation, bibtex} - formatted citation string
-
-save_output(title: str, content: str)
-# Returns: {saved_to: filepath}
-
-refresh_eur_database_index(force: bool = False, max_age_hours: int = 24)
-# Returns: {refreshed, fetched_at, scraped_count, known_databases_count, source_url, note}
-# Loads EUR library database list for verification
-
-search_eur_databases(query: str, top_k: int = 10)
-# Returns: {matches: [{name, url, access, status, notes, verified}], not_available_warning: [...]}
-# Searches EUR database list to verify data availability for students
-```
+The agent exposes six tools to the LLM: `search_papers`, `get_paper_details`, `format_citation`, `save_output`, `refresh_eur_database_index`, `search_eur_databases`. See `agent.py` for full schemas and return types.
 
 ## EUR Database Verification
 
@@ -231,6 +215,7 @@ Update `eur_databases.json` when EUR database access changes. Check [EDSC news](
 | writing | quarto (@key) | Paper writing assistance (used when writing with loaded reference papers) |
 | review | inline | Reviewer report writing (used by `/review` workflow) |
 | search | bibtex | Literature discovery (default base mode when starting RAiner) |
+| exam-review | inline | Exam/quiz quality review (used by `/review` on exam documents) |
 
 ### Feedback Mode Output Format
 
