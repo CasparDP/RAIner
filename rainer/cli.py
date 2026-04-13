@@ -13,9 +13,11 @@ from rich.panel import Panel
 from rich.table import Table
 
 from .agent import ResearchAgent
+from .chunking import estimate_tokens
 from .config import get_config, load_config, set_config
 from .memory import ConversationMemory, SessionManager
-from .output import MarkdownWriter
+from .output import MarkdownWriter, _parse_draft_name
+from .students import StudentDB
 
 console = Console()
 
@@ -62,6 +64,10 @@ def print_help() -> None:
 | `/save [filename]` | Save conversation to a Quarto/Markdown file (default `.qmd`) |
 | `/refs` | Show current reference list |
 | `/bibtex` | Show BibTeX entries |
+| `/register <name> [email]` | Register a student for tracking |
+| `/students` | List registered students and progress |
+| `/versions [student name]` | Show draft versions for a student |
+| `/import-feedback <file>` | Import your edited feedback for the current draft |
 | `/stats` | Show database statistics |
 | `/clear` | Clear conversation (new base session) |
 | `/quit` or `/exit` | Exit |
@@ -243,7 +249,7 @@ def main() -> None:
     batch_parser = subparsers.add_parser("batch", help="Batch process files non-interactively")
     batch_parser.add_argument(
         "workflow",
-        choices=["feedback", "review"],
+        choices=["feedback", "feedback_hyp_rd", "review"],
         help="Workflow to run on each file",
     )
     batch_parser.add_argument("files", nargs="+", help="Files to process")
@@ -268,7 +274,7 @@ def main() -> None:
     parser.add_argument(
         "-m",
         "--mode",
-        choices=["feedback", "writing", "review", "search", "exam-review"],
+        choices=["feedback", "feedback_hyp_rd", "writing", "review", "search", "exam-review"],
         help="Start in specific mode",
     )
     parser.add_argument(
@@ -314,6 +320,15 @@ def main() -> None:
 
     # Session management
     session_manager = SessionManager()
+
+    # Student tracking DB (lazy — created on first use or /register)
+    student_db: StudentDB | None = None
+
+    def get_student_db() -> StudentDB:
+        nonlocal student_db
+        if student_db is None:
+            student_db = StudentDB()
+        return student_db
 
     # Resume or new session
     if args.resume:
@@ -388,17 +403,21 @@ def main() -> None:
                     print_help()
 
                 elif cmd == "/mode":
-                    if cmd_arg in ("feedback", "writing", "review", "search"):
+                    if cmd_arg in ("feedback", "feedback_hyp_rd", "writing", "review", "search"):
                         mode = cmd_arg  # type: ignore
                         memory = ConversationMemory.new(mode=mode)
                         agent = ResearchAgent(mode=mode, memory=memory)  # type: ignore
+                        hint = (
+                            " (advanced; prefer /review and /feedback for one-shot workflows)"
+                            if cmd_arg in ("feedback", "writing", "review", "search")
+                            else ""
+                        )
                         console.print(
-                            f"[green]Switched to persistent {mode} mode "
-                            f"(advanced; prefer /review and /feedback for one-shot workflows)[/green]"
+                            f"[green]Switched to {mode} mode{hint}[/green]"
                         )
                     else:
                         console.print(
-                            "[yellow]Usage: /mode <feedback|writing|review|search>[/yellow]"
+                            "[yellow]Usage: /mode <feedback|feedback_hyp_rd|writing|review|search>[/yellow]"
                         )
 
                 elif cmd == "/sessions":
@@ -421,10 +440,38 @@ def main() -> None:
                     if cmd_arg:
                         content, metadata = load_file(cmd_arg)
                         if content:
+                            draft_filename = Path(cmd_arg).name
                             result = agent.load_draft(
-                                content, name=Path(cmd_arg).name, metadata=metadata
+                                content, name=draft_filename, metadata=metadata
                             )
                             console.print(f"[green]{result}[/green]")
+
+                            # Auto-store in student DB if student name parseable
+                            try:
+                                student_name, draft_title = _parse_draft_name(
+                                    Path(cmd_arg).stem
+                                )
+                                if student_name:
+                                    sdb = get_student_db()
+                                    student = sdb.register_student(student_name)
+                                    tokens = estimate_tokens(content)
+                                    draft = sdb.store_draft(
+                                        student_id=student.student_id,
+                                        content=content,
+                                        filename=draft_filename,
+                                        token_count=tokens,
+                                    )
+                                    # Store references for later use in /feedback
+                                    memory.set_context("tracked_student_id", student.student_id)
+                                    memory.set_context("tracked_draft_id", draft.draft_id)
+                                    memory.set_context("tracked_draft_version", draft.version)
+                                    console.print(
+                                        f"[dim]Tracked: {student.name} v{draft.version}[/dim]"
+                                    )
+                            except Exception as e:
+                                console.print(
+                                    f"[dim]Student tracking skipped: {e}[/dim]"
+                                )
                     else:
                         console.print("[yellow]Usage: /load <filepath>[/yellow]")
                         console.print(
@@ -490,7 +537,7 @@ def main() -> None:
                         )
                     else:
                         source_memory = memory
-                        feedback_mode: Literal["feedback"] = "feedback"
+                        feedback_mode = mode if mode in ("feedback", "feedback_hyp_rd") else "feedback"
                         memory = ConversationMemory.new(mode=feedback_mode)
                         for key in (
                             "draft_loaded",
@@ -511,16 +558,45 @@ def main() -> None:
                         console.print(
                             f"[green]Started feedback session {memory.session_id}[/green]"
                         )
+                        if feedback_mode == "feedback_hyp_rd":
+                            base_feedback = "Run a structured hypothesis and research design feedback report on the loaded draft."
+                        else:
+                            base_feedback = "Run a structured student-facing feedback report on the loaded draft."
                         feedback_prompt = (
-                            f"Run a structured student-facing feedback report on the loaded draft. {cmd_arg}"
-                            if cmd_arg
-                            else "Run a structured student-facing feedback report on the loaded draft."
+                            f"{base_feedback} {cmd_arg}" if cmd_arg else base_feedback
                         )
                         console.print()
                         with console.status("[bold green]Generating feedback...", spinner="dots"):
                             response = agent.chat(feedback_prompt)
                         console.print(Markdown(response))
                         console.print()
+
+                        # Auto-store feedback in student DB
+                        tracked_draft_id = source_memory.get_context("tracked_draft_id")
+                        if tracked_draft_id:
+                            try:
+                                sdb = get_student_db()
+                                run = sdb.store_feedback(
+                                    draft_id=tracked_draft_id,
+                                    mode=feedback_mode,
+                                    feedback_text=response,
+                                    provider=agent.provider_type,
+                                    model=agent.model,
+                                    session_id=memory.session_id,
+                                )
+                                # Carry tracking context into the new session
+                                memory.set_context("tracked_draft_id", tracked_draft_id)
+                                memory.set_context("tracked_feedback_run_id", run.run_id)
+                                student_id = source_memory.get_context("tracked_student_id")
+                                if student_id:
+                                    memory.set_context("tracked_student_id", student_id)
+                                console.print(
+                                    f"[dim]Feedback stored (run {run.run_id})[/dim]"
+                                )
+                            except Exception as e:
+                                console.print(
+                                    f"[dim]Feedback tracking skipped: {e}[/dim]"
+                                )
 
                 elif cmd == "/exam-review":
                     if not memory.get_context("draft_loaded"):
@@ -649,6 +725,111 @@ def main() -> None:
                             console.print(f"[red]{e}[/red]")
                     else:
                         console.print(f"[cyan]Current model: {agent.model}[/cyan]")
+
+                elif cmd == "/register":
+                    if cmd_arg:
+                        parts = cmd_arg.split(maxsplit=1)
+                        # Check if last part looks like an email
+                        tokens_list = cmd_arg.rsplit(maxsplit=1)
+                        if len(tokens_list) == 2 and "@" in tokens_list[1]:
+                            reg_name = tokens_list[0]
+                            reg_email = tokens_list[1]
+                        else:
+                            reg_name = cmd_arg
+                            reg_email = None
+                        sdb = get_student_db()
+                        student = sdb.register_student(reg_name, email=reg_email)
+                        console.print(
+                            f"[green]Registered: {student.name}"
+                            + (f" ({student.email})" if student.email else "")
+                            + f" [id={student.student_id}][/green]"
+                        )
+                    else:
+                        console.print("[yellow]Usage: /register <name> [email][/yellow]")
+
+                elif cmd == "/students":
+                    sdb = get_student_db()
+                    overview = sdb.get_progress_overview()
+                    if not overview:
+                        console.print("[dim]No students registered yet. Use /register <name>[/dim]")
+                    else:
+                        table = Table(title="Student Progress")
+                        table.add_column("Name", style="bold")
+                        table.add_column("Email", style="dim")
+                        table.add_column("Drafts", justify="center")
+                        table.add_column("Latest", justify="center")
+                        table.add_column("Feedback runs", justify="center")
+                        table.add_column("Last activity", style="dim")
+                        for row in overview:
+                            last = row["last_submission"] or row["last_feedback"] or ""
+                            if last:
+                                last = last[:10]  # Date only
+                            table.add_row(
+                                row["name"],
+                                row["email"] or "",
+                                str(row["num_drafts"] or 0),
+                                f"v{row['latest_version']}" if row["latest_version"] else "-",
+                                str(row["num_feedback_runs"] or 0),
+                                last,
+                            )
+                        console.print(table)
+
+                elif cmd == "/versions":
+                    sdb = get_student_db()
+                    if cmd_arg:
+                        student = sdb.get_student_by_name(cmd_arg)
+                    else:
+                        # Try current draft's student
+                        sid = memory.get_context("tracked_student_id")
+                        student = None
+                        if sid:
+                            students = sdb.list_students()
+                            student = next((s for s in students if s.student_id == sid), None)
+                    if not student:
+                        console.print("[yellow]Student not found. Usage: /versions <student name>[/yellow]")
+                    else:
+                        drafts = sdb.get_drafts_for_student(student.student_id)
+                        if not drafts:
+                            console.print(f"[dim]No drafts stored for {student.name}[/dim]")
+                        else:
+                            table = Table(title=f"Drafts: {student.name}")
+                            table.add_column("Version", justify="center")
+                            table.add_column("Filename")
+                            table.add_column("Tokens", justify="right")
+                            table.add_column("Loaded", style="dim")
+                            table.add_column("Feedback", justify="center")
+                            for d in drafts:
+                                fb = sdb.get_feedback_for_draft(d.draft_id)
+                                table.add_row(
+                                    f"v{d.version}",
+                                    d.filename,
+                                    f"{d.token_count:,}",
+                                    d.loaded_at[:10] if d.loaded_at else "",
+                                    str(len(fb)) if fb else "-",
+                                )
+                            console.print(table)
+
+                elif cmd == "/import-feedback":
+                    run_id = memory.get_context("tracked_feedback_run_id")
+                    if not run_id:
+                        console.print(
+                            "[yellow]No feedback run to update. Run /feedback first.[/yellow]"
+                        )
+                    elif not cmd_arg:
+                        console.print("[yellow]Usage: /import-feedback <filepath>[/yellow]")
+                    else:
+                        try:
+                            edited_path = Path(cmd_arg.strip().strip("'\"")).expanduser()
+                            edited_text = edited_path.read_text(encoding="utf-8")
+                            sdb = get_student_db()
+                            sdb.store_edited_feedback(run_id, edited_text)
+                            console.print(
+                                f"[green]Imported edited feedback for run {run_id}[/green]"
+                            )
+                        except FileNotFoundError:
+                            console.print(f"[red]File not found: {cmd_arg}[/red]")
+                        except Exception as e:
+                            console.print(f"[red]Import failed: {e}[/red]")
 
                 elif cmd == "/clear":
                     memory = ConversationMemory.new(mode=mode)

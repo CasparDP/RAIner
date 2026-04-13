@@ -276,3 +276,64 @@ rainer batch feedback *.pdf --workers 3
 . . .
 
 RAIner is open-source (MIT). Contributions welcome.
+
+# Appendix {.appendix}
+
+## Appendix: Under the Hood — `/load` to LLM {.smaller}
+
+```{mermaid}
+%%| fig-width: 12
+flowchart TD
+    subgraph LOAD ["/load student_paper.pdf"]
+        A["PDF file"] --> B["docling\n(parse to markdown)"]
+        B --> C["estimate_tokens()\nlen(text) // 4"]
+        C --> D["chunk_text()\n~2000 tok chunks\n200 tok overlap"]
+        D --> E["extract_key_sections()\nAbstract, Methods, ..."]
+        E --> F["_build_draft_summary()\n400 chars per section"]
+        F --> G["Create draft_excerpt\nfull text or truncated\n(max_context_tokens)"]
+    end
+
+    subgraph STORE ["Memory (session JSON)"]
+        G --> H["draft_content: full text\ndraft_sections: dict\ndraft_summary: bullets\ndraft_excerpt: excerpt\ndraft_chunks: count"]
+    end
+
+    subgraph FEEDBACK ["/feedback"]
+        H --> I["_build_prompt()\nfeedback.md + CITATION_RULES\n+ DATA_SOURCE_RULES"]
+        H --> J["_build_draft_context()\nsummary + key sections + excerpt"]
+        H --> K["_ensure_feedback_data_verification()\nauto-call EUR tools"]
+
+        I --> L["SYSTEM MESSAGE\nprompt + rules + draft + EUR results"]
+        J --> L
+        K --> L
+
+        L --> M["messages = [\n  {system: ...},\n  {user: 'Run feedback report'}\n]"]
+    end
+
+    subgraph LLM ["Provider API Call"]
+        M --> N["adapter.generate(\n  messages, tools\n)"]
+        N --> O{"Tool calls?"}
+        O -- "Yes" --> P["Execute tool\n(search_papers, etc.)"]
+        P --> Q["Append tool result\nto messages"]
+        Q --> N
+        O -- "No" --> R{"Missing\nsections?"}
+        R -- "Yes" --> S["Request missing\nsections A-I"]
+        S --> N
+        R -- "No" --> T["Return final\nfeedback report"]
+    end
+```
+
+## Appendix: Key Config Parameters {.smaller}
+
+Controls how much of the draft reaches the LLM:
+
+| Parameter | Default | Cloud-friendly | Effect |
+|---|---|---|---|
+| `max_context_tokens` | 8,000 | 16,000–24,000 | Max tokens of draft in system prompt |
+| `max_section_chars` | 2,000 | 4,000–6,000 | Max chars per detected section |
+| `include_full_draft` | `false` | `true` | Send untruncated draft if it fits |
+
+. . .
+
+Set in `config.yaml` under `draft_context:`. Changes take effect on next RAiner launch.
+
+The chunking parameters (`max_chunk_tokens`, `overlap_tokens`) control storage granularity, **not** what reaches the LLM.

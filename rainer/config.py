@@ -77,6 +77,7 @@ class DataConfig(BaseModel):
     chroma_path: str = "./data/chroma"
     chroma_collection: str = "paper_abstracts"
     sessions_path: str = "~/.local/share/rainer/sessions"
+    students_db_path: str = "./data/students.duckdb"
 
 
 class EmbeddingsConfig(BaseModel):

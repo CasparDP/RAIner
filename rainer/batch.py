@@ -66,6 +66,7 @@ def process_single_file(
         # Build prompt
         base_prompt = {
             "feedback": "Run a structured student-facing feedback report on the loaded draft.",
+            "feedback_hyp_rd": "Run a structured hypothesis and research design feedback report on the loaded draft.",
             "review": "Run a structured review report on the loaded draft.",
         }.get(workflow, "Run a structured report on the loaded draft.")
 

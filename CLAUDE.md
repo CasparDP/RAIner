@@ -25,6 +25,7 @@ RAiner/
     ├── providers.py        # LLM provider adapters (Ollama, OpenAI, Anthropic, Google, OpenRouter)
     ├── prompts.py          # Prompt loading utilities (resolves mode -> markdown file)
     ├── memory.py           # Session persistence (JSON files)
+    ├── students.py         # Student tracking DB (DuckDB: drafts, feedback, versions)
     ├── papers.py           # DuckDB interface for paper metadata
     ├── search.py           # ChromaDB vector search
     ├── pdf.py              # PDF/document parsing via docling (optional)
@@ -112,7 +113,7 @@ The DuckDB database (`articles.duckdb`) has three tables:
   - `/review [extra prompt]`: run a one-shot structured reviewer-style report on the loaded draft (creates a dedicated `review` session, copies draft context)
   - `/feedback [extra prompt]`: run a one-shot structured student-facing feedback report on the loaded draft (creates a dedicated `feedback` session, copies draft context)
   - Normal chat: ad-hoc questions and literature search using the current base session
-- Additional commands: `/help`, `/mode`, `/provider`, `/model`, `/sessions`, `/resume`, `/loadpaper`, `/papers`, `/save`, `/refs`, `/bibtex`, `/stats`, `/info`, `/clear`, `/quit`
+- Additional commands: `/help`, `/mode`, `/provider`, `/model`, `/sessions`, `/resume`, `/loadpaper`, `/papers`, `/save`, `/refs`, `/bibtex`, `/stats`, `/info`, `/register`, `/students`, `/versions`, `/import-feedback`, `/clear`, `/quit`
 - CLI flags: `-p/--provider`, `--model`, `-m/--mode`, `-c/--config`, `-r/--resume`, `-l/--load`
 
 ### `pdf.py` - Document Parsing (Optional)
@@ -212,6 +213,7 @@ Update `eur_databases.json` when EUR database access changes. Check [EDSC news](
 | Mode | Citation Style | Use Case |
 |------|---------------|----------|
 | feedback | inline | Student draft review with data feasibility audit (used by `/feedback` workflow) |
+| feedback_hyp_rd | inline | Hypothesis & research design focused feedback (select via `/mode feedback_hyp_rd`) |
 | writing | quarto (@key) | Paper writing assistance (used when writing with loaded reference papers) |
 | review | inline | Reviewer report writing (used by `/review` workflow) |
 | search | bibtex | Literature discovery (default base mode when starting RAiner) |
@@ -234,6 +236,68 @@ F. Methods & identification feedback
 G. Literature & citations needed (tool-backed only)
 H. Concrete revision checklist (10-15 items)
 I. Clarifying questions
+```
+
+### Feedback Hyp-RD Mode Output Format
+
+The `feedback_hyp_rd` mode focuses on hypothesis quality and research design alignment. It classifies submissions into one of three paths:
+
+1. **Full draft** — standard path with hypothesis map, alignment audit, design assessment, lightweight data check
+2. **Partial submission** — only hypothesis/design section submitted; feedback scoped to what's present, with explicit "cannot evaluate" list
+3. **Insufficient hypotheses/design** — constructive fallback that proposes testable hypotheses and feasible research designs
+
+Uses SUBMISSION_FIDELITY rules (STATED / INFERRED / NOT FOUND labeling) to prevent hallucinating what the student wrote.
+
+```
+Full draft output:
+A. Executive summary (hypothesis–analysis alignment verdict)
+B. Hypothesis Map (per-hypothesis table: mechanism, direction, test, variables, verdict)
+C. Hypothesis–Analysis Alignment Audit (test mapping, DV/IV operationalization, confounds)
+D. Research Design Assessment (identification strategy, assumptions, alternatives)
+E. Data–Hypothesis Feasibility Check (lightweight)
+F. Strengths
+G. Literature & citations needed
+H. Revision checklist (hypothesis/design fixes front-loaded)
+I. Clarifying questions
+
+Insufficient output:
+A. RQ Assessment
+B. Proposed Hypotheses (labeled as suggestions)
+C. Proposed Research Designs (labeled as suggestions)
+D. Data Feasibility
+E. Strengths
+F. Building-block revision checklist
+G. Clarifying questions
+```
+
+## Student Tracking
+
+RAiner includes a longitudinal student tracking system (`students.py`) for managing draft versions and feedback over time.
+
+### Database Schema (`students.duckdb`)
+
+- **`students`**: student_id (PK), name (unique), email, cohort, created_at
+- **`drafts`**: draft_id (PK), student_id (FK), version (auto-incremented per student), filename, content_hash (dedup), raw_text, token_count, loaded_at
+- **`feedback_runs`**: run_id (PK), draft_id (FK), mode, provider, model, session_id, feedback_text, feedback_edited (optional), edited_at, created_at
+
+### CLI Commands
+
+- `/register <name> [email]` — register a student (auto-created on `/load` if name parseable from filename)
+- `/students` — progress overview table (drafts, versions, feedback runs per student)
+- `/versions [student name]` — list all draft versions for a student
+- `/import-feedback <file>` — import your edited feedback for the most recent feedback run
+
+### Automatic Behavior
+
+- **On `/load`**: If the filename follows the `"Name – Title"` pattern, the student is auto-registered and the draft stored with an auto-incremented version. Duplicate content (same hash) is detected and not re-stored.
+- **On `/feedback`**: The LLM response is auto-stored as a feedback run linked to the tracked draft.
+- **On v2+ drafts**: The agent injects a `[Changes since v{N-1}]` block into the system prompt with a diff summary, changed sections, and the previous feedback. The LLM is instructed to focus on whether previous issues were addressed.
+
+### Configuration
+
+```yaml
+data:
+  students_db_path: ./data/students.duckdb  # default location
 ```
 
 ## Development Notes

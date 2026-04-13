@@ -225,7 +225,7 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
 
     def __init__(
         self,
-        mode: Literal["feedback", "writing", "review", "search", "exam-review"] = "feedback",
+        mode: Literal["feedback", "feedback_hyp_rd", "writing", "review", "search", "exam-review"] = "feedback",
         memory: ConversationMemory | None = None,
     ):
         self.config = get_config()
@@ -759,6 +759,11 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
         if draft_metadata.get("format"):
             lines.append(f"[Format: {draft_metadata['format'].upper()}]")
 
+        # Version diff context (if v2+ and student tracking is active)
+        version_context = self._build_version_diff_context()
+        if version_context:
+            lines.append(version_context)
+
         if summary:
             lines.append("\n[Draft Summary]")
             lines.append(summary)
@@ -779,6 +784,55 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
 
         lines.append("\n--- END OF DOCUMENT ---")
         return "\n".join(lines)
+
+    def _build_version_diff_context(self) -> str:
+        """Build diff context for v2+ drafts using student tracking DB."""
+        student_id = self.memory.get_context("tracked_student_id")
+        draft_version = self.memory.get_context("tracked_draft_version")
+
+        if not student_id or not draft_version or draft_version < 2:
+            return ""
+
+        try:
+            from .students import StudentDB
+
+            sdb = StudentDB()
+            diff = sdb.compute_version_diff(
+                student_id=student_id,
+                from_version=draft_version - 1,
+                to_version=draft_version,
+            )
+            sdb.close()
+
+            if not diff:
+                return ""
+
+            lines = [
+                f"\n[Changes since v{diff.from_version}]",
+                f"This is version {diff.to_version} of the draft by {diff.student_name}.",
+                f"Changes: {diff.diff_summary}",
+            ]
+
+            if diff.previous_feedback:
+                # Truncate long feedback to keep context manageable
+                max_fb_chars = self.config.draft_context.max_section_chars * 2
+                fb_text = diff.previous_feedback
+                if len(fb_text) > max_fb_chars:
+                    fb_text = fb_text[:max_fb_chars] + "\n... (truncated)"
+                lines.append(f"\n[Previous feedback (v{diff.from_version})]")
+                lines.append(fb_text)
+                lines.append(
+                    "\nIMPORTANT: Focus your feedback on whether the student addressed "
+                    "the issues raised above. Acknowledge improvements. Do not repeat "
+                    "feedback points that have already been resolved. Prioritize NEW "
+                    "issues or issues that remain unaddressed."
+                )
+
+            return "\n".join(lines)
+
+        except Exception:
+            # Student DB not available or other error — degrade gracefully
+            return ""
 
     def _build_reference_papers_context(self) -> str:
         """Build context block for loaded reference papers (writing mode)."""
