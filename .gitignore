@@ -78,3 +78,7 @@ rainer/config.example.yaml
 
 /.quarto/
 **/*.quarto_ipynb
+
+# Ignore backup folders
+data.local-backup/
+output.local-backup/

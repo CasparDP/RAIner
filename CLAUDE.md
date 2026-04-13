@@ -136,10 +136,45 @@ provider:
   model: qwen2.5:14b
 
 data:
-  duckdb_path: ~/path/to/articles.duckdb
-  chroma_path: ~/path/to/chroma
+  duckdb_path: ~/path/to/articles.duckdb       # paper metadata (read-only)
+  chroma_path: ~/path/to/chroma                # embeddings (read-only)
   chroma_collection: paper_abstracts
+  sessions_path: ~/.local/share/rainer/sessions
+  students_db_path: /path/to/students.duckdb   # student tracking DB (read/write)
+
+output:
+  directory: /path/to/output                   # generated .qmd / .pdf feedback reports
+
+draft_context:
+  max_context_tokens: 20000
+  max_section_chars: 5000
+  include_full_draft: true
 ```
+
+### Cross-machine setup (Dropbox sync)
+
+The project is configured to sync the student tracking DB and output files across
+machines via Dropbox at `/Users/casparm2/Dropbox/Github Data/rainer/`:
+
+- `data/students.duckdb` — longitudinal student tracking DB (writable)
+- `output/` — generated feedback / review reports (`.qmd`, `.pdf`)
+
+The paper database (`articles.duckdb`) and ChromaDB embeddings live under
+`/Users/casparm2/Dropbox/Github Data/cite-hustle/DB/` and are read-only for RAiner
+(written by the separate `cite-hustle` scraper).
+
+**DuckDB + Dropbox safety rules** (important — WAL file corruption risk):
+
+1. Always fully quit RAiner before switching machines. This flushes the write-ahead
+   log (`students.duckdb.wal`) so only the main `.duckdb` file needs to sync.
+2. Wait for Dropbox to show "up to date" before opening RAiner on the other machine.
+3. Never run RAiner on two machines simultaneously — concurrent writes to the
+   synced DB can corrupt it.
+4. If a `.wal` file lingers after quitting, that's a sign the previous session
+   didn't close cleanly. Open RAiner once locally to let DuckDB replay/flush it
+   before syncing.
+
+The `output/` folder has no such constraints — plain files, safe to sync freely.
 
 ## Providers
 
@@ -297,8 +332,14 @@ RAiner includes a longitudinal student tracking system (`students.py`) for manag
 
 ```yaml
 data:
-  students_db_path: ./data/students.duckdb  # default location
+  # Default: ./data/students.duckdb
+  # Current setup (Dropbox-synced across machines):
+  students_db_path: "/Users/casparm2/Dropbox/Github Data/rainer/data/students.duckdb"
 ```
+
+See the [Cross-machine setup](#cross-machine-setup-dropbox-sync) section above for
+the DuckDB + Dropbox safety rules (fully quit RAiner before switching machines,
+never run on two machines simultaneously).
 
 ## Development Notes
 
