@@ -992,6 +992,18 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                 "H. Concrete revision checklist",
                 "I. Clarifying questions",
             ]
+        elif self.mode == "feedback_hyp_rd":
+            required = [
+                "A. Executive summary",
+                "B. Hypothesis Map",
+                "C. Hypothesis",  # matches "Hypothesis–Analysis Alignment Audit"
+                "D. Research Design Assessment",
+                "E. Data",  # matches "Data–Hypothesis Feasibility Check"
+                "F. Strengths",
+                "G. Literature",
+                "H. Revision checklist",
+                "I. Clarifying questions",
+            ]
         elif self.mode == "review":
             required = [
                 "Section 1",
@@ -1014,6 +1026,57 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
             lines.append(f"- {heading}")
         return "\n".join(lines)
 
+    # -- Unicode math symbols that should be LaTeX instead --
+    _UNICODE_MATH_CHARS = set("αβγδεζηθικλμνξπρστυφχψωΑΒΓΔΕΖΗΘΙΚΛΜΝΞΠΡΣΤΥΦΧΨΩ"
+                              "²³¹⁰⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉"
+                              "≤≥≠≈∑∏∫∂∞±×÷√∈∉⊂⊃∪∩∅∀∃")
+
+    def _check_formatting_issues(self, content: str) -> list[str]:
+        """Detect voice and math formatting violations in feedback output."""
+        if self.mode not in ("feedback_hyp_rd", "feedback"):
+            return []
+
+        issues: list[str] = []
+        import re
+
+        # Check for third-person voice violations (outside of the labeling system)
+        voice_patterns = [
+            r"\bthe student\b", r"\bthe author\b",
+            r"\bthe student's\b", r"\bthe author's\b",
+        ]
+        for pattern in voice_patterns:
+            matches = re.findall(pattern, content, re.IGNORECASE)
+            if matches:
+                issues.append(
+                    f"Voice violation: found {len(matches)}x '{matches[0]}'. "
+                    "Rewrite these to use 'you/your' (second person)."
+                )
+                break
+
+        # Check for bare Unicode math outside of LaTeX delimiters
+        # Strip LaTeX-delimited regions first to avoid false positives
+        stripped = re.sub(r"\$\$.*?\$\$", "", content, flags=re.DOTALL)
+        stripped = re.sub(r"\$[^$]+?\$", "", stripped)
+        found_unicode = [ch for ch in stripped if ch in self._UNICODE_MATH_CHARS]
+        if found_unicode:
+            unique = set(found_unicode)
+            examples = ", ".join(sorted(unique)[:5])
+            issues.append(
+                f"Math formatting violation: found bare Unicode math symbols ({examples}) "
+                "outside of LaTeX delimiters. Wrap ALL math in $...$ or $$...$$."
+            )
+
+        return issues
+
+    def _build_verification_request(self, issues: list[str]) -> str:
+        """Build a follow-up request to fix formatting violations."""
+        lines = [
+            "VERIFICATION FAILED — please fix the following issues and return the COMPLETE corrected report:",
+        ]
+        for i, issue in enumerate(issues, 1):
+            lines.append(f"{i}. {issue}")
+        return "\n".join(lines)
+
     def chat(self, user_input: str) -> str:
         """
         Process user input and return assistant response.
@@ -1031,7 +1094,7 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
             self._ensure_feedback_data_verification()
             system_prompt += self._build_data_verification_context()
 
-        if self.mode in ("feedback", "review"):
+        if self.mode in ("feedback", "feedback_hyp_rd", "review"):
             system_prompt += self._build_review_context()
 
         full_system_prompt = system_prompt + draft_context + papers_context
@@ -1086,6 +1149,18 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                             {
                                 "role": "user",
                                 "content": self._build_missing_sections_request(missing),
+                            }
+                        )
+                        continue
+                    # Programmatic verification of voice + math formatting
+                    fmt_issues = self._check_formatting_issues(content)
+                    if fmt_issues and not follow_up_attempted:
+                        follow_up_attempted = True
+                        messages.append({"role": "assistant", "content": content})
+                        messages.append(
+                            {
+                                "role": "user",
+                                "content": self._build_verification_request(fmt_issues),
                             }
                         )
                         continue

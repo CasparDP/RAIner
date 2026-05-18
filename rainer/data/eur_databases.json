@@ -1,0 +1,399 @@
+{
+  "_metadata": {
+    "description": "Erasmus University Rotterdam Library database access list",
+    "source": "Compiled from libguides.eur.nl, eur.nl/library, EDSC news, and manual verification",
+    "last_updated": "2026-02-03",
+    "maintainer": "Update manually when database access changes. Check eur.nl/en/library/research-support/edsc/edsc-news for updates."
+  },
+  "databases": [
+    {
+      "name": "WRDS (Wharton Research Data Services)",
+      "aliases": ["wrds", "wharton"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "online",
+      "status": "active",
+      "notes": "Primary platform for many financial databases. Requires EUR account registration.",
+      "contains": ["Compustat", "CRSP", "I/B/E/S", "ExecuComp", "OptionMetrics", "BoardEx", "RiskMetrics", "TAQ"]
+    },
+    {
+      "name": "Compustat Global",
+      "aliases": ["compustat global", "compustat international", "s&p compustat global"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "International company fundamentals. Access via WRDS."
+    },
+    {
+      "name": "Compustat North America",
+      "aliases": ["compustat", "compustat na", "s&p compustat", "compustat north america"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "US/Canada company fundamentals, annual reports, credit ratings, index constituents."
+    },
+    {
+      "name": "CRSP (Center for Research in Security Prices)",
+      "aliases": ["crsp", "crsp stock", "crsp prices"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "US stock prices, returns, and indices."
+    },
+    {
+      "name": "CRSP Treasury",
+      "aliases": ["crsp treasury", "crsp bonds", "treasury bonds"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "US Treasury bond data."
+    },
+    {
+      "name": "I/B/E/S (Institutional Brokers' Estimate System)",
+      "aliases": ["ibes", "i/b/e/s", "analyst forecasts", "earnings estimates", "analyst estimates"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "Analyst earnings forecasts and recommendations."
+    },
+    {
+      "name": "ExecuComp",
+      "aliases": ["execucomp", "executive compensation", "ceo compensation", "ceo pay"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "Executive compensation data for S&P 1500 firms."
+    },
+    {
+      "name": "BoardEx",
+      "aliases": ["boardex", "board of directors", "director networks", "board connections"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "Board of directors, executive profiles, and network connections."
+    },
+    {
+      "name": "ISS (Institutional Shareholder Services)",
+      "aliases": ["iss", "institutional shareholder services", "governance", "proxy voting"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "Corporate governance, director data, voting analytics."
+    },
+    {
+      "name": "OptionMetrics",
+      "aliases": ["optionmetrics", "options data", "implied volatility", "options"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "Options prices, implied volatility, Greeks."
+    },
+    {
+      "name": "Mergent FISD",
+      "aliases": ["mergent fisd", "fisd", "fixed income", "bond data", "corporate bonds"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "Fixed Income Securities Database - corporate bond characteristics."
+    },
+    {
+      "name": "Thomson Reuters Ownership",
+      "aliases": ["thomson reuters ownership", "institutional ownership", "13f", "ownership data"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "Institutional holdings (13F filings)."
+    },
+    {
+      "name": "People Intelligence",
+      "aliases": ["people intelligence", "executive data"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "Executive and board member information."
+    },
+    {
+      "name": "S&P Transcripts",
+      "aliases": ["s&p transcripts", "earnings call transcripts", "conference call transcripts"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "Earnings call transcripts. License active until August 2026."
+    },
+    {
+      "name": "PitchBook",
+      "aliases": ["pitchbook", "private equity data", "vc data", "venture capital"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "expiring",
+      "notes": "Private market data (startups, PE, VC). Access expires November 2025."
+    },
+    {
+      "name": "Revelio Labs",
+      "aliases": ["revelio", "revelio labs", "labor market data", "workforce data"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "trial",
+      "notes": "Labor market and workforce analytics. Trial access expires June 2026."
+    },
+    {
+      "name": "RavenPack",
+      "aliases": ["ravenpack", "news sentiment", "news analytics"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "expired",
+      "notes": "News sentiment and analytics. License ended March 2025. Data must be purged per agreement."
+    },
+    {
+      "name": "LSEG Workspace (formerly Eikon/Datastream)",
+      "aliases": ["lseg", "eikon", "datastream", "refinitiv", "thomson reuters", "lseg workspace", "refinitiv eikon", "worldscope"],
+      "url": "https://libguides.eur.nl/edsc-manuals",
+      "access": "on-campus or virtual machine",
+      "status": "active",
+      "notes": "Room Y1-7 (Polak Building) - 10 terminals, no reservation. Also available via virtual machines. 2-hour daily limit.",
+      "contains": ["Datastream", "Worldscope", "SDC Platinum", "Deals", "ESG data", "Credit ratings"]
+    },
+    {
+      "name": "SDC Platinum",
+      "aliases": ["sdc", "sdc platinum", "m&a data", "mergers acquisitions", "ipo data", "deals data"],
+      "url": "https://libguides.eur.nl/edsc-manuals",
+      "access": "via LSEG Workspace",
+      "status": "active",
+      "notes": "M&A, IPOs, joint ventures, alliances. Access via LSEG Workspace."
+    },
+    {
+      "name": "Orbis (Bureau van Dijk)",
+      "aliases": ["orbis", "bureau van dijk", "bvd", "amadeus", "company data"],
+      "url": "https://orbis.bvdinfo.com/",
+      "access": "online",
+      "status": "active",
+      "notes": "Global company information, financials, ownership structures."
+    },
+    {
+      "name": "Morningstar Direct",
+      "aliases": ["morningstar", "mutual funds", "fund data", "etf data"],
+      "url": "https://libguides.eur.nl/edsc-manuals",
+      "access": "virtual machine only",
+      "status": "active",
+      "notes": "Mutual funds, ETFs, open-end and closed-end funds. Booking required for VM access."
+    },
+    {
+      "name": "Bloomberg Terminal",
+      "aliases": ["bloomberg"],
+      "url": null,
+      "access": "discontinued",
+      "status": "cancelled",
+      "notes": "Bloomberg license cancelled April 2024 due to budget cuts. Use LSEG Workspace as alternative."
+    },
+    {
+      "name": "EBSCO Business Source Complete",
+      "aliases": ["ebsco", "business source", "business source complete"],
+      "url": "https://search.ebscohost.com/",
+      "access": "online",
+      "status": "active",
+      "notes": "Business journals, articles, and ebooks."
+    },
+    {
+      "name": "JSTOR",
+      "aliases": ["jstor"],
+      "url": "https://www.jstor.org/",
+      "access": "online",
+      "status": "active",
+      "notes": "Academic journals archive."
+    },
+    {
+      "name": "Web of Science",
+      "aliases": ["web of science", "wos", "clarivate", "citation index"],
+      "url": "https://www.webofscience.com/",
+      "access": "online",
+      "status": "active",
+      "notes": "Citation database and journal rankings."
+    },
+    {
+      "name": "Scopus",
+      "aliases": ["scopus", "elsevier scopus"],
+      "url": "https://www.scopus.com/",
+      "access": "online",
+      "status": "active",
+      "notes": "Abstract and citation database."
+    },
+    {
+      "name": "ProQuest",
+      "aliases": ["proquest", "abi/inform", "dissertations"],
+      "url": "https://www.proquest.com/",
+      "access": "online",
+      "status": "active",
+      "notes": "Dissertations, theses, newspapers, and journals."
+    },
+    {
+      "name": "Statista",
+      "aliases": ["statista", "statistics"],
+      "url": "https://www.statista.com/",
+      "access": "online",
+      "status": "active",
+      "notes": "Statistics and market data across industries."
+    },
+    {
+      "name": "OECD iLibrary",
+      "aliases": ["oecd", "oecd data", "oecd ilibrary"],
+      "url": "https://www.oecd-ilibrary.org/",
+      "access": "online",
+      "status": "active",
+      "notes": "OECD publications, statistics, and datasets."
+    },
+    {
+      "name": "Eurostat",
+      "aliases": ["eurostat", "eu statistics", "european statistics"],
+      "url": "https://ec.europa.eu/eurostat",
+      "access": "public",
+      "status": "active",
+      "notes": "European Union statistics. Publicly available."
+    },
+    {
+      "name": "World Bank Open Data",
+      "aliases": ["world bank", "wdi", "world development indicators"],
+      "url": "https://data.worldbank.org/",
+      "access": "public",
+      "status": "active",
+      "notes": "Development indicators. Publicly available."
+    },
+    {
+      "name": "IMF Data",
+      "aliases": ["imf", "international monetary fund", "imf data"],
+      "url": "https://data.imf.org/",
+      "access": "public",
+      "status": "active",
+      "notes": "International financial statistics. Publicly available."
+    },
+    {
+      "name": "CBS StatLine",
+      "aliases": ["cbs", "statline", "statistics netherlands", "cbs statline"],
+      "url": "https://opendata.cbs.nl/",
+      "access": "public",
+      "status": "active",
+      "notes": "Netherlands official statistics. Publicly available."
+    },
+    {
+      "name": "SEC EDGAR",
+      "aliases": ["edgar", "sec", "sec filings", "10-k", "10-q", "8-k", "proxy"],
+      "url": "https://www.sec.gov/edgar",
+      "access": "public",
+      "status": "active",
+      "notes": "US company filings (10-K, 10-Q, 8-K, proxy statements). Publicly available."
+    },
+    {
+      "name": "SSRN",
+      "aliases": ["ssrn", "social science research network", "working papers"],
+      "url": "https://www.ssrn.com/",
+      "access": "public",
+      "status": "active",
+      "notes": "Working papers and preprints. Publicly available."
+    },
+    {
+      "name": "Eventus (via WRDS)",
+      "aliases": ["eventus", "event study", "cowan research"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "Event study software using CRSP data."
+    },
+    {
+      "name": "TAQ (Trade and Quote)",
+      "aliases": ["taq", "trade and quote", "nyse taq", "intraday data", "tick data"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "Intraday trades and quotes for US equities."
+    },
+    {
+      "name": "RiskMetrics",
+      "aliases": ["riskmetrics", "risk metrics"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "Risk management datasets."
+    },
+    {
+      "name": "EBSCO Business eBook Collection",
+      "aliases": ["ebsco ebooks", "business ebooks"],
+      "url": "https://libguides.eur.nl/businessebooks",
+      "access": "online",
+      "status": "trial",
+      "notes": "Trial access until November 2026."
+    },
+    {
+      "name": "Harvard Business eBook Collection",
+      "aliases": ["harvard business", "hbr ebooks", "harvard business review"],
+      "url": "https://libguides.eur.nl/harvardbusiness",
+      "access": "online",
+      "status": "trial",
+      "notes": "Harvard Business Review Press collection. Trial until November 2026."
+    },
+    {
+      "name": "Knowledgestore (Markets and Markets)",
+      "aliases": ["knowledgestore", "markets and markets", "market research"],
+      "url": "https://libguides.eur.nl/marketsandmarkets",
+      "access": "online",
+      "status": "trial",
+      "notes": "Market research on high-growth niche markets."
+    },
+    {
+      "name": "Portfolio Management Research",
+      "aliases": ["pmr", "portfolio management research"],
+      "url": "https://libguides.eur.nl/pmr",
+      "access": "online",
+      "status": "trial",
+      "notes": "Finance and investment publications."
+    },
+    {
+      "name": "South African Newspaper Archive",
+      "aliases": ["south african newspapers", "rand daily mail", "sunday times south africa", "sowetan"],
+      "url": "https://libguides.eur.nl/SouthAfricanNewspaperArchive",
+      "access": "online",
+      "status": "trial",
+      "notes": "Historical South African newspapers (Rand Daily Mail, Sunday Times, Sowetan)."
+    }
+  ],
+  "not_available": [
+    {
+      "name": "FactSet",
+      "aliases": ["factset"],
+      "notes": "Not available at EUR. No subscription."
+    },
+    {
+      "name": "Capital IQ",
+      "aliases": ["capital iq", "s&p capital iq"],
+      "notes": "Not confirmed at EUR. Some data may be available via Compustat/WRDS."
+    },
+    {
+      "name": "Sustainalytics",
+      "aliases": ["sustainalytics", "esg ratings"],
+      "notes": "Not confirmed at EUR. Check LSEG Workspace for ESG data alternatives."
+    },
+    {
+      "name": "Audit Analytics",
+      "aliases": ["audit analytics"],
+      "notes": "Not found in EUR database access. Verify with EDSC."
+    },
+    {
+      "name": "Preqin",
+      "aliases": ["preqin", "private equity data"],
+      "notes": "Subscription discontinued March 15, 2025 due to budget cuts. PitchBook via WRDS is alternative (until Nov 2025)."
+    },
+    {
+      "name": "Survivor-Bias-Free Mutual Fund Database",
+      "aliases": ["survivor bias free", "mutual fund database"],
+      "notes": "Access removed as of July 1, 2025."
+    }
+  ],
+  "public_sources": [
+    "SEC EDGAR",
+    "World Bank Open Data",
+    "IMF Data",
+    "Eurostat",
+    "CBS StatLine",
+    "SSRN",
+    "Federal Reserve FRED",
+    "Yahoo Finance",
+    "Google Finance"
+  ]
+}

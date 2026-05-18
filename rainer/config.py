@@ -85,7 +85,7 @@ class EmbeddingsConfig(BaseModel):
 
 
 class SearchConfig(BaseModel):
-    top_k: int = 20
+    top_k: int = 40
     min_similarity: float = 0.3
 
 
