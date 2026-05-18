@@ -15,6 +15,7 @@ RAiner is an open-source academic research assistant that runs locally. It uses:
 RAiner/
 ├── pyproject.toml          # Poetry configuration
 ├── config.example.yaml     # Example config file
+├── tests/                  # pytest test suite
 ├── README.md               # User documentation
 ├── CLAUDE.md               # This file - developer/AI documentation
 └── rainer/                 # Python package (lowercase!)
@@ -136,6 +137,7 @@ Key settings:
 provider:
   name: ollama  # ollama, ollama-cloud, openai, openrouter, anthropic, google
   model: qwen2.5:14b
+  temperature: 0.1  # lower = more deterministic; Ollama defaults to 0.3
 
 data:
   duckdb_path: ~/path/to/articles.duckdb       # paper metadata (read-only)
@@ -148,9 +150,9 @@ output:
   directory: /path/to/output                   # generated .qmd / .pdf feedback reports
 
 draft_context:
-  max_context_tokens: 20000
-  max_section_chars: 5000
-  include_full_draft: true
+  max_context_tokens: 8000  # increase for large-context models
+  max_section_chars: 2000
+  include_full_draft: false
 ```
 
 ### Cross-machine setup (Dropbox sync)
@@ -385,6 +387,7 @@ never run on two machines simultaneously).
 - ChromaDB uses cosine similarity space
 - Session files are JSON for easy debugging
 - Embedding model must match between `embed.py` and `search.py`
+- The `output/` directory needs a `_quarto.yml` to control PDF defaults (author, paper size, fonts); see `output.local-backup/_quarto.yml` for a template
 - Output:
   - Default output extension is configurable via `output.default_extension` (defaults to `.qmd`)
   - YAML frontmatter includes a Quarto `format:` block (default `pdf: default`)
