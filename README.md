@@ -46,7 +46,7 @@ Edit `~/.config/rainer/config.yaml`:
 
 ```yaml
 provider:
-  name: ollama-cloud  # or ollama for local
+  name: ollama-cloud # or ollama for local
   model: qwen2.5:14b
 
 data:
@@ -185,30 +185,32 @@ Each file gets its own session, agent, and output .qmd file. The filename's stud
 
 ### Commands
 
-| Command | Description |
-|---------|-------------|
-| `/help` | Show this help |
-| `/provider [name] [model]` | Show/switch LLM provider |
-| `/model <name>` | Switch model |
-| `/sessions` | List recent sessions |
-| `/resume <id>` | Resume a previous session |
-| `/load <file>` | Load a draft/document (PDF, DOCX, MD, TXT) |
-| `/loadpaper <file>` | Load a reference paper (PDF) for writing mode |
-| `/review [extra prompt]` | Run a structured review workflow on the loaded draft |
+| Command                    | Description                                                  |
+| -------------------------- | ------------------------------------------------------------ |
+| `/help`                    | Show this help                                               |
+| `/provider [name] [model]` | Show/switch LLM provider                                     |
+| `/model <name>`            | Switch model                                                 |
+| `/sessions`                | List recent sessions                                         |
+| `/resume <id>`             | Resume a previous session                                    |
+| `/load <file>`             | Load a draft/document (PDF, DOCX, MD, TXT)                   |
+| `/loadpaper <file>`        | Load a reference paper (PDF) for writing mode                |
+| `/review [extra prompt]`   | Run a structured review workflow on the loaded draft         |
 | `/feedback [extra prompt]` | Run a structured student feedback report on the loaded draft |
-| `/papers` | Show loaded reference papers |
-| `/save [filename]` | Save conversation to a Quarto/Markdown file (default `.qmd`) |
-| `/refs` | Show current reference list |
-| `/bibtex` | Show BibTeX entries |
-| `/stats` | Show database statistics |
-| `/info` | Show current session and draft status |
-| `/clear` | Start new base session |
-| `/quit` | Exit |
+| `/papers`                  | Show loaded reference papers                                 |
+| `/save [filename]`         | Save conversation to a Quarto/Markdown file (default `.qmd`) |
+| `/refs`                    | Show current reference list                                  |
+| `/bibtex`                  | Show BibTeX entries                                          |
+| `/stats`                   | Show database statistics                                     |
+| `/info`                    | Show current session and draft status                        |
+| `/clear`                   | Start new base session                                       |
+| `/quit`                    | Exit                                                         |
 
 ### Workflows
 
 #### Student Feedback workflow (`/feedback`)
+
 After loading a draft with `/load`, run a structured student-facing feedback report:
+
 - Research question and hypothesis assessment
 - Data feasibility audit (verifies EUR database access)
 - Literature gap identification with tool-backed citations
@@ -217,11 +219,12 @@ After loading a draft with `/load`, run a structured student-facing feedback rep
 The agent automatically verifies whether required databases (WRDS, Compustat, Bloomberg, etc.) are available at EUR using the built-in EUR tools, and produces a structured report (executive summary, feasibility audit, revision checklist, etc.).
 
 ```
-/load "Ashkan Issazadeh – Draft proposal – v1 – 23 feb.pdf"
+/load "Student 01 – Draft proposal – v1 – 23 feb.pdf"
 /feedback Focus on feasibility and clarity for a master thesis
 ```
 
 #### Writing Assistance (normal chat + `/loadpaper`)
+
 Help write papers with proper Quarto-style citations. Load reference papers as PDFs to cite from, then ask the model to draft sections:
 
 ```
@@ -230,6 +233,7 @@ Help me write an introduction about high-frequency trading, citing the loaded pa
 ```
 
 #### Review Reports workflow (`/review`)
+
 Write reviewer reports and check literature coverage on the loaded draft:
 
 ```
@@ -238,6 +242,7 @@ Write reviewer reports and check literature coverage on the loaded draft:
 ```
 
 #### Literature Search (normal chat in base session)
+
 Use the base session (default `search` mode) to find papers and get BibTeX entries:
 
 ```
@@ -247,16 +252,19 @@ Find papers about market maker inventory management after 2015
 ## Output Formats
 
 ### Inline Citations (feedback, review modes)
+
 ```
 The evidence suggests price discovery occurs primarily in limit orders (Smith, 2020; Jones, 2021).
 ```
 
 ### Quarto Citations (writing mode)
+
 ```
 The evidence suggests price discovery occurs primarily in limit orders [@smith2020; @jones2021].
 ```
 
 ### BibTeX (search mode, always available via `/bibtex`)
+
 ```bibtex
 @article{smith2020,
   title = {Price Discovery in Limit Order Markets},
@@ -276,12 +284,12 @@ RAiner includes built-in verification of database access at Erasmus University R
 
 ### Tracked Databases (43 total)
 
-| Status | Examples |
-|--------|----------|
-| **Active** | WRDS, Compustat, CRSP, Orbis, LSEG Workspace, Morningstar |
-| **Trial** | PitchBook (until Nov 2025), Revelio Labs (until Jun 2026) |
-| **Cancelled** | Bloomberg (Apr 2024), RavenPack (Mar 2025) |
-| **Not Available** | FactSet, Capital IQ, Preqin, Audit Analytics |
+| Status            | Examples                                                  |
+| ----------------- | --------------------------------------------------------- |
+| **Active**        | WRDS, Compustat, CRSP, Orbis, LSEG Workspace, Morningstar |
+| **Trial**         | PitchBook (until Nov 2025), Revelio Labs (until Jun 2026) |
+| **Cancelled**     | Bloomberg (Apr 2024), RavenPack (Mar 2025)                |
+| **Not Available** | FactSet, Capital IQ, Preqin, Audit Analytics              |
 
 The database list is maintained in `rainer/data/eur_databases.json`. Update this file when EUR database access changes.
 
