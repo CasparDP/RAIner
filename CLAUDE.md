@@ -39,6 +39,8 @@ RAiner/
     │   └── eur_databases.json  # EUR library database access list (curated)
     └── prompts/            # Mode-specific system prompt templates (Markdown)
         ├── feedback.md
+        ├── feedback_hyp_rd.md
+        ├── feedback_results.md
         ├── writing.md
         ├── review.md
         ├── search.md
@@ -85,7 +87,7 @@ The DuckDB database (`articles.duckdb`) has three tables:
 
 ### `prompts.py` - Prompt Loading
 - Loads mode-specific system prompts from `rainer/prompts/*.md`
-- Valid modes: `feedback`, `writing`, `review`, `search`, `exam-review`
+- Valid modes: `feedback`, `feedback_hyp_rd`, `feedback_results`, `writing`, `review`, `search`, `exam-review`
 - Supports config override for prompt directory via `output.prompt_dir`
 
 ### `mcp_server.py` - MCP Server
@@ -111,7 +113,7 @@ The DuckDB database (`articles.duckdb`) has three tables:
 - Workflow-oriented commands:
   - `/load <file>`: load a draft/document (PDF, DOCX, MD, TXT) into the base session
   - `/review [extra prompt]`: run a one-shot structured reviewer-style report on the loaded draft (creates a dedicated `review` session, copies draft context)
-  - `/feedback [extra prompt]`: run a one-shot structured student-facing feedback report on the loaded draft (creates a dedicated `feedback` session, copies draft context)
+  - `/feedback [extra prompt]`: run a one-shot feedback report on the loaded draft. Inherits the current mode if it is `feedback`, `feedback_hyp_rd`, or `feedback_results`; otherwise defaults to `feedback`.
   - Normal chat: ad-hoc questions and literature search using the current base session
 - Additional commands: `/help`, `/mode`, `/provider`, `/model`, `/sessions`, `/resume`, `/loadpaper`, `/papers`, `/save`, `/refs`, `/bibtex`, `/stats`, `/info`, `/register`, `/students`, `/versions`, `/import-feedback`, `/clear`, `/quit`
 - CLI flags: `-p/--provider`, `--model`, `-m/--mode`, `-c/--config`, `-r/--resume`, `-l/--load`
@@ -221,6 +223,9 @@ poetry run rainer-mcp
 # Batch process multiple files
 rainer batch feedback submissions/*.pdf --workers 3
 rainer batch feedback *.pdf -e "Focus on methodology" -p anthropic
+
+# Run tests
+poetry run pytest
 ```
 
 ## Agent Tools
@@ -249,6 +254,7 @@ Update `eur_databases.json` when EUR database access changes. Check [EDSC news](
 |------|---------------|----------|
 | feedback | inline | Student draft review with data feasibility audit (used by `/feedback` workflow) |
 | feedback_hyp_rd | inline | Hypothesis & research design focused feedback (select via `/mode feedback_hyp_rd`) |
+| feedback_results | inline | Results-design consistency feedback for drafts with empirical output (select via `/mode feedback_results`) |
 | writing | quarto (@key) | Paper writing assistance (used when writing with loaded reference papers) |
 | review | inline | Reviewer report writing (used by `/review` workflow) |
 | search | bibtex | Literature discovery (default base mode when starting RAiner) |
@@ -303,6 +309,37 @@ D. Data Feasibility
 E. Strengths
 F. Building-block revision checklist
 G. Clarifying questions
+```
+
+### Feedback Results Mode Output Format
+
+The `feedback_results` mode evaluates whether reported results deliver what the research design promised. Uses STATED / INFERRED / NOT FOUND labeling throughout; every comment must be grounded in a specific passage, table, or equation in the draft. Citations require a full DOI.
+
+Classifies submissions into three paths:
+
+1. **Full draft with results** — has RQ, hypotheses, methods, and actual empirical output
+2. **Partial: methods but no results** — design present, results absent or placeholder
+3. **Insufficient** — too much missing to evaluate meaningfully
+
+```
+Full draft output:
+A. Executive summary (results-design fidelity verdict; every bullet cites a specific section/table)
+B. Results-Design Consistency Audit (per hypothesis: promised test vs. delivered test, sign alignment, interpretation)
+C. Specification Audit (FE, SE, controls, sample — flag silent deviations from methods description)
+D. Results Interpretation (are coefficients/tables read correctly?)
+E. Missing Analyses (only flagged if design section explicitly promised them)
+F. Threats to Validity: Addressed vs. Open
+G. Strengths
+H. Literature & citations needed (tool-backed; full DOI required inline and in reference list)
+I. Revision checklist (front-loaded with consistency fixes)
+J. Clarifying questions
+
+Partial output (no results yet):
+A. Executive summary (design readiness)
+B. Design Readiness Audit (per hypothesis: is the test fully specified?)
+C. Pre-flight checklist (variable construction, sample restrictions, robustness to plan in advance)
+D. What I cannot evaluate without results
+E. Clarifying questions
 ```
 
 ## Student Tracking

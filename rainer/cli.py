@@ -249,7 +249,7 @@ def main() -> None:
     batch_parser = subparsers.add_parser("batch", help="Batch process files non-interactively")
     batch_parser.add_argument(
         "workflow",
-        choices=["feedback", "feedback_hyp_rd", "review"],
+        choices=["feedback", "feedback_hyp_rd", "feedback_results", "review"],
         help="Workflow to run on each file",
     )
     batch_parser.add_argument("files", nargs="+", help="Files to process")
@@ -274,7 +274,7 @@ def main() -> None:
     parser.add_argument(
         "-m",
         "--mode",
-        choices=["feedback", "feedback_hyp_rd", "writing", "review", "search", "exam-review"],
+        choices=["feedback", "feedback_hyp_rd", "feedback_results", "writing", "review", "search", "exam-review"],
         help="Start in specific mode",
     )
     parser.add_argument(
@@ -403,7 +403,7 @@ def main() -> None:
                     print_help()
 
                 elif cmd == "/mode":
-                    if cmd_arg in ("feedback", "feedback_hyp_rd", "writing", "review", "search"):
+                    if cmd_arg in ("feedback", "feedback_hyp_rd", "feedback_results", "writing", "review", "search"):
                         mode = cmd_arg  # type: ignore
                         memory = ConversationMemory.new(mode=mode)
                         agent = ResearchAgent(mode=mode, memory=memory)  # type: ignore
@@ -417,7 +417,7 @@ def main() -> None:
                         )
                     else:
                         console.print(
-                            "[yellow]Usage: /mode <feedback|feedback_hyp_rd|writing|review|search>[/yellow]"
+                            "[yellow]Usage: /mode <feedback|feedback_hyp_rd|feedback_results|writing|review|search>[/yellow]"
                         )
 
                 elif cmd == "/sessions":
@@ -537,7 +537,7 @@ def main() -> None:
                         )
                     else:
                         source_memory = memory
-                        feedback_mode = mode if mode in ("feedback", "feedback_hyp_rd") else "feedback"
+                        feedback_mode = mode if mode in ("feedback", "feedback_hyp_rd", "feedback_results") else "feedback"
                         memory = ConversationMemory.new(mode=feedback_mode)
                         for key in (
                             "draft_loaded",
@@ -560,6 +560,8 @@ def main() -> None:
                         )
                         if feedback_mode == "feedback_hyp_rd":
                             base_feedback = "Run a structured hypothesis and research design feedback report on the loaded draft."
+                        elif feedback_mode == "feedback_results":
+                            base_feedback = "Run a structured results and design consistency feedback report on the loaded draft."
                         else:
                             base_feedback = "Run a structured student-facing feedback report on the loaded draft."
                         feedback_prompt = (
