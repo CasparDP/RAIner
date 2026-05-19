@@ -745,15 +745,14 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
         return base + "\n" + self.CITATION_RULES + "\n" + self.DATA_SOURCE_RULES
 
     def _build_draft_context(self) -> str:
-        """Build context block for loaded drafts without overloading the prompt."""
+        """Build context block for loaded drafts."""
         if not self.memory.get_context("draft_loaded"):
             return ""
 
         draft_name = self.memory.get_context("draft_name") or "draft"
         draft_metadata = self.memory.get_context("draft_metadata") or {}
         summary = self.memory.get_context("draft_summary") or ""
-        sections = self.memory.get_context("draft_sections") or {}
-        excerpt = self.memory.get_context("draft_excerpt") or ""
+        full_content = self.memory.get_context("draft_content") or ""
 
         lines = [f"\n\n--- LOADED DOCUMENT: {draft_name} ---"]
         if draft_metadata.get("format"):
@@ -768,19 +767,9 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
             lines.append("\n[Draft Summary]")
             lines.append(summary)
 
-        if sections:
-            max_chars = self.config.draft_context.max_section_chars
-            lines.append("\n[Key Sections]")
-            for name, content in sections.items():
-                if content:
-                    trimmed = content.strip()
-                    if max_chars > 0 and len(trimmed) > max_chars:
-                        trimmed = trimmed[:max_chars] + "..."
-                    lines.append(f"\n## {name.title()}\n{trimmed}")
-
-        if excerpt:
-            lines.append("\n[Excerpt]")
-            lines.append(excerpt)
+        if full_content:
+            lines.append("\n[Full Draft Content]")
+            lines.append(full_content)
 
         lines.append("\n--- END OF DOCUMENT ---")
         return "\n".join(lines)
@@ -1163,9 +1152,6 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
             self._ensure_feedback_data_verification()
             system_prompt += self._build_data_verification_context()
 
-        if self.mode in ("feedback", "feedback_hyp_rd", "review"):
-            system_prompt += self._build_review_context()
-
         full_system_prompt = system_prompt + draft_context + papers_context
 
         messages = [
@@ -1287,14 +1273,6 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
         # Review pipeline preprocessing
         self.memory.set_context("draft_sections", extract_key_sections(content))
         self.memory.set_context("draft_summary", self._build_draft_summary(content))
-
-        # Limit excerpt for prompt context
-        max_tokens = self.config.draft_context.max_context_tokens
-        if self.config.draft_context.include_full_draft and tokens <= max_tokens:
-            self.memory.set_context("draft_excerpt", content)
-        else:
-            excerpt = content[: max_tokens * 4]
-            self.memory.set_context("draft_excerpt", excerpt)
 
         return msg
 

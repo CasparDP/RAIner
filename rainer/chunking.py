@@ -180,14 +180,14 @@ def extract_key_sections(text: str) -> dict[str, str]:
     """
     # Common section headers in academic papers
     section_patterns = [
-        r"(?i)^#+\s*(abstract|summary)",
-        r"(?i)^#+\s*(introduction|background)",
-        r"(?i)^#+\s*(literature\s+review|related\s+work)",
-        r"(?i)^#+\s*(method|methodology|data|sample)",
-        r"(?i)^#+\s*(result|finding|analysis)",
-        r"(?i)^#+\s*(discussion)",
-        r"(?i)^#+\s*(conclusion|concluding)",
-        r"(?i)^#+\s*(reference|bibliography)",
+        r"(?i)^#+\s*(?:[\d.]+\s+)?(abstract|summary)",
+        r"(?i)^#+\s*(?:[\d.]+\s+)?(introduction|background)",
+        r"(?i)^#+\s*(?:[\d.]+\s+)?(literature\s+review|related\s+work)",
+        r"(?i)^#+\s*(?:[\d.]+\s+)?(method|methodology|data|sample)",
+        r"(?i)^#+\s*(?:[\d.]+\s+)?(result|finding|analysis)",
+        r"(?i)^#+\s*(?:[\d.]+\s+)?(discussion)",
+        r"(?i)^#+\s*(?:[\d.]+\s+)?(conclusion|concluding)",
+        r"(?i)^#+\s*(?:[\d.]+\s+)?(reference|bibliography)",
     ]
 
     sections: dict[str, str] = {}

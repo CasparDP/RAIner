@@ -380,6 +380,12 @@ See the [Cross-machine setup](#cross-machine-setup-dropbox-sync) section above f
 the DuckDB + Dropbox safety rules (fully quit RAiner before switching machines,
 never run on two machines simultaneously).
 
+## Draft Context Architecture
+
+- `draft_content` (set in `load_draft()`): full document text, always stored without truncation — this is what `_build_draft_context()` injects into the system prompt as `[Full Draft Content]`
+- `draft_excerpt` (legacy key): still copied between sessions in `cli.py` but no longer written by `load_draft()` or read by the agent — do not use
+- `_build_review_context()` in `agent.py`: dead code, not called from `chat()` — do not re-introduce its call; the full draft in `_build_draft_context()` supersedes it
+
 ## Development Notes
 
 - Package must be lowercase `rainer/` (not `RAiner/`) for Python imports
