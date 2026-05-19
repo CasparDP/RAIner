@@ -1,6 +1,7 @@
 """Command-line interface for RAiner."""
 
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
@@ -530,6 +531,20 @@ def main() -> None:
                         console.print(Markdown(response))
                         console.print()
 
+                        # Auto-save review report to .qmd
+                        try:
+                            draft_name = source_memory.get_context("draft_name") or "draft"
+                            draft_stem = Path(draft_name).stem
+                            writer = MarkdownWriter(citation_formatter=agent.citation_formatter)
+                            writer.set_title(f"Review of: {draft_stem}")
+                            writer.add_metadata("date", datetime.now().strftime("%Y-%m-%d"))
+                            writer.add_metadata("type", "review")
+                            writer.add_text(response)
+                            output_path = writer.write()
+                            console.print(f"[dim]Saved to: {output_path}[/dim]")
+                        except Exception as e:
+                            console.print(f"[dim]Auto-save failed: {e}[/dim]")
+
                 elif cmd == "/feedback":
                     if not memory.get_context("draft_loaded"):
                         console.print(
@@ -572,6 +587,25 @@ def main() -> None:
                             response = agent.chat(feedback_prompt)
                         console.print(Markdown(response))
                         console.print()
+
+                        # Auto-save feedback report to .qmd
+                        try:
+                            draft_name = source_memory.get_context("draft_name") or "draft"
+                            draft_stem = Path(draft_name).stem
+                            student_name_parsed, draft_title_parsed = _parse_draft_name(draft_stem)
+                            writer = MarkdownWriter(citation_formatter=agent.citation_formatter)
+                            writer.set_title(f"Feedback on: {draft_stem}")
+                            writer.add_metadata("date", datetime.now().strftime("%Y-%m-%d"))
+                            writer.add_metadata("type", feedback_mode)
+                            writer.set_draft_info(
+                                title=draft_title_parsed or draft_stem,
+                                student=student_name_parsed,
+                            )
+                            writer.add_text(response)
+                            output_path = writer.write()
+                            console.print(f"[dim]Saved to: {output_path}[/dim]")
+                        except Exception as e:
+                            console.print(f"[dim]Auto-save failed: {e}[/dim]")
 
                         # Auto-store feedback in student DB
                         tracked_draft_id = source_memory.get_context("tracked_draft_id")
@@ -638,6 +672,20 @@ def main() -> None:
                             response = agent.chat(exam_prompt)
                         console.print(Markdown(response))
                         console.print()
+
+                        # Auto-save exam review to .qmd
+                        try:
+                            draft_name = source_memory.get_context("draft_name") or "exam"
+                            draft_stem = Path(draft_name).stem
+                            writer = MarkdownWriter(citation_formatter=agent.citation_formatter)
+                            writer.set_title(f"Exam review: {draft_stem}")
+                            writer.add_metadata("date", datetime.now().strftime("%Y-%m-%d"))
+                            writer.add_metadata("type", "exam-review")
+                            writer.add_text(response)
+                            output_path = writer.write()
+                            console.print(f"[dim]Saved to: {output_path}[/dim]")
+                        except Exception as e:
+                            console.print(f"[dim]Auto-save failed: {e}[/dim]")
 
                 elif cmd == "/papers":
                     # Show loaded reference papers

@@ -909,6 +909,52 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
 
         return sorted(names)
 
+    def _extract_search_topics(self, draft_content: str) -> list[str]:
+        """Extract 2-3 deterministic search queries from draft content (no LLM)."""
+        topics: list[str] = []
+        hay = draft_content.lower()
+        sections = extract_key_sections(draft_content)
+
+        # Topic 1: opening sentences from abstract or introduction
+        for section_name in ("abstract", "summary", "introduction", "preamble"):
+            text = sections.get(section_name, "").strip()
+            if len(text) > 50:
+                sentences = re.split(r"(?<=[.!?])\s+", text)
+                topics.append(" ".join(sentences[:3])[:300])
+                break
+        if not topics:
+            # Fallback: first 60 words of the document
+            snippet = " ".join(draft_content.split()[:60])
+            if snippet:
+                topics.append(snippet)
+
+        # Topic 2: identification / econometric method
+        method_map = [
+            (["difference-in-differences", "diff-in-diff", " did "], "difference-in-differences causal identification"),
+            (["regression discontinuity", " rdd "], "regression discontinuity design"),
+            (["instrumental variable", " iv ", "2sls", "two-stage least squares"], "instrumental variables endogeneity"),
+            (["event study", "cumulative abnormal return", " car "], "event study stock market reaction"),
+            (["synthetic control"], "synthetic control causal inference"),
+            (["fixed effects", "panel data"], "panel data fixed effects econometrics"),
+            (["natural experiment"], "natural experiment quasi-experimental design"),
+        ]
+        for keywords, query in method_map:
+            if any(kw in hay for kw in keywords):
+                topics.append(query)
+                break
+
+        # Topic 3: hypothesis or contribution section opening
+        for section_name in ("hypothesis", "contribution", "literature"):
+            text = sections.get(section_name, "").strip()
+            if len(text) > 50:
+                sentences = re.split(r"(?<=[.!?])\s+", text)
+                snippet = " ".join(sentences[:2])[:200]
+                if snippet and snippet not in topics:
+                    topics.append(snippet)
+                    break
+
+        return topics[:3]
+
     def _ensure_feedback_data_verification(self) -> None:
         """Auto-run EUR verification in feedback mode to keep feasibility checks consistent."""
         if self.mode != "feedback":
@@ -933,15 +979,26 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
             verification_results[name] = result.result
 
         self.memory.set_context("eur_verification", verification_results)
+
+        # Pre-run paper searches so the LLM has literature ready without re-searching
+        topics = self._extract_search_topics(draft_content)
+        pre_searched: dict[str, list] = {}
+        for topic in topics:
+            result = self._execute_tool("search_papers", {"query": topic, "top_k": 8})
+            if result.success and result.result:
+                pre_searched[topic] = result.result
+        self.memory.set_context("pre_searched_papers", pre_searched)
+
         self.memory.set_context("eur_verification_hash", current_hash)
 
     def _build_data_verification_context(self) -> str:
-        """Build context block with EUR verification results."""
+        """Build context block with EUR verification results and pre-searched literature."""
         if self.mode != "feedback":
             return ""
         verification = self.memory.get_context("eur_verification") or {}
         refresh = self.memory.get_context("eur_refresh_result") or {}
-        if not verification and not refresh:
+        pre_searched = self.memory.get_context("pre_searched_papers") or {}
+        if not verification and not refresh and not pre_searched:
             return ""
 
         lines = ["\n\n--- EUR DATABASE VERIFICATION ---"]
@@ -952,6 +1009,18 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
             lines.append("\n[Database Checks]")
             lines.append(json.dumps(verification, indent=2))
         lines.append("\n--- END EUR DATABASE VERIFICATION ---")
+
+        if pre_searched:
+            lines.append(
+                "\n\n--- PRE-SEARCHED LITERATURE ---\n"
+                "These papers were retrieved before the conversation. "
+                "Cite them directly without calling search_papers for these topics."
+            )
+            for topic, papers in pre_searched.items():
+                lines.append(f"\n[Topic: {topic[:120]}]")
+                lines.append(json.dumps(papers, indent=2))
+            lines.append("\n--- END PRE-SEARCHED LITERATURE ---")
+
         return "\n".join(lines)
 
     def _build_review_context(self) -> str:
