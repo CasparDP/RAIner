@@ -54,6 +54,7 @@ def print_help() -> None:
 | `/help` | Show this help |
 | `/provider [name] [model]` | Show/switch LLM provider |
 | `/model <name>` | Switch model |
+| `/mode <name>` | Start a new session in a specific mode |
 | `/sessions` | List recent sessions |
 | `/resume <id>` | Resume a previous session |
 | `/load <file>` | Load a document (PDF, DOCX, XLSX, MD, TXT) |
@@ -94,6 +95,7 @@ def print_help() -> None:
 ## Tips
 
 - Use `/load` for drafts, then `/review` or `/feedback` as needed
+- Use `/mode feedback_final` before `/feedback` for last pre-submission thesis feedback
 - Use `/loadpaper` for reference PDFs in writing workflows
 - Supports PDF, DOCX, XLSX, TXT, MD (PDF/DOCX/XLSX require: `poetry install --with pdf`)
 - Use specific queries: "papers about market microstructure after 2020"
@@ -250,7 +252,7 @@ def main() -> None:
     batch_parser = subparsers.add_parser("batch", help="Batch process files non-interactively")
     batch_parser.add_argument(
         "workflow",
-        choices=["feedback", "feedback_hyp_rd", "feedback_results", "review"],
+        choices=["feedback", "feedback_hyp_rd", "feedback_results", "feedback_final", "review"],
         help="Workflow to run on each file",
     )
     batch_parser.add_argument("files", nargs="+", help="Files to process")
@@ -275,7 +277,7 @@ def main() -> None:
     parser.add_argument(
         "-m",
         "--mode",
-        choices=["feedback", "feedback_hyp_rd", "feedback_results", "writing", "review", "search", "exam-review"],
+        choices=["feedback", "feedback_hyp_rd", "feedback_results", "feedback_final", "writing", "review", "search", "exam-review"],
         help="Start in specific mode",
     )
     parser.add_argument(
@@ -404,7 +406,7 @@ def main() -> None:
                     print_help()
 
                 elif cmd == "/mode":
-                    if cmd_arg in ("feedback", "feedback_hyp_rd", "feedback_results", "writing", "review", "search"):
+                    if cmd_arg in ("feedback", "feedback_hyp_rd", "feedback_results", "feedback_final", "writing", "review", "search"):
                         mode = cmd_arg  # type: ignore
                         memory = ConversationMemory.new(mode=mode)
                         agent = ResearchAgent(mode=mode, memory=memory)  # type: ignore
@@ -418,7 +420,7 @@ def main() -> None:
                         )
                     else:
                         console.print(
-                            "[yellow]Usage: /mode <feedback|feedback_hyp_rd|feedback_results|writing|review|search>[/yellow]"
+                            "[yellow]Usage: /mode <feedback|feedback_hyp_rd|feedback_results|feedback_final|writing|review|search>[/yellow]"
                         )
 
                 elif cmd == "/sessions":
@@ -552,7 +554,11 @@ def main() -> None:
                         )
                     else:
                         source_memory = memory
-                        feedback_mode = mode if mode in ("feedback", "feedback_hyp_rd", "feedback_results") else "feedback"
+                        feedback_mode = (
+                            mode
+                            if mode in ("feedback", "feedback_hyp_rd", "feedback_results", "feedback_final")
+                            else "feedback"
+                        )
                         memory = ConversationMemory.new(mode=feedback_mode)
                         for key in (
                             "draft_loaded",
@@ -577,6 +583,8 @@ def main() -> None:
                             base_feedback = "Run a structured hypothesis and research design feedback report on the loaded draft."
                         elif feedback_mode == "feedback_results":
                             base_feedback = "Run a structured results and design consistency feedback report on the loaded draft."
+                        elif feedback_mode == "feedback_final":
+                            base_feedback = "Run a structured final pre-submission MSc thesis feedback report on the loaded draft."
                         else:
                             base_feedback = "Run a structured student-facing feedback report on the loaded draft."
                         feedback_prompt = (

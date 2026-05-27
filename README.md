@@ -6,7 +6,7 @@ RAiner generates outputs as Quarto-compatible Markdown files (`.qmd`) by default
 
 ## Features
 
-- **Multiple modes**: Student feedback, writing assistance, review reports, exam review, literature search
+- **Multiple modes**: Student feedback, final pre-submission thesis feedback, writing assistance, review reports, exam review, literature search
 - **Batch processing**: Process multiple student submissions in parallel (`rainer batch feedback *.pdf`)
 - **Vector search**: Find relevant papers using semantic search via ChromaDB
 - **Fallback search**: Works with keyword search even before embeddings are created
@@ -218,9 +218,16 @@ After loading a draft with `/load`, run a structured student-facing feedback rep
 
 The agent automatically verifies whether required databases (WRDS, Compustat, Bloomberg, etc.) are available at EUR using the built-in EUR tools, and produces a structured report (executive summary, feasibility audit, revision checklist, etc.).
 
+For the last full-draft check before MSc thesis submission, switch to `feedback_final` first. This mode is more pass-oriented: it gives a `PASS LIKELY / BORDERLINE / FAIL LIKELY` verdict, focuses on the minimum changes needed to pass, keeps data checks and citations, and includes a brief writing-style verdict.
+
 ```
 /load "Student 01 – Draft proposal – v1 – 23 feb.pdf"
 /feedback Focus on feasibility and clarity for a master thesis
+
+# Final pre-submission thesis feedback
+/mode feedback_final
+/load "Student 01 – Full MSc thesis draft.pdf"
+/feedback Focus on the minimum changes needed to make this thesis passable before submission
 ```
 
 #### Writing Assistance (normal chat + `/loadpaper`)

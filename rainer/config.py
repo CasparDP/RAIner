@@ -97,6 +97,9 @@ class ModeConfig(BaseModel):
 
 class ModesConfig(BaseModel):
     feedback: ModeConfig = Field(default_factory=lambda: ModeConfig(citation_style="inline"))
+    feedback_final: ModeConfig = Field(
+        default_factory=lambda: ModeConfig(citation_style="inline")
+    )
     writing: ModeConfig = Field(
         default_factory=lambda: ModeConfig(citation_style="quarto", bibtex_output=True)
     )

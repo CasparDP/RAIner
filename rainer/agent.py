@@ -225,7 +225,16 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
 
     def __init__(
         self,
-        mode: Literal["feedback", "feedback_hyp_rd", "writing", "review", "search", "exam-review"] = "feedback",
+        mode: Literal[
+            "feedback",
+            "feedback_hyp_rd",
+            "feedback_results",
+            "feedback_final",
+            "writing",
+            "review",
+            "search",
+            "exam-review",
+        ] = "feedback",
         memory: ConversationMemory | None = None,
     ):
         self.config = get_config()
@@ -946,7 +955,7 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
 
     def _ensure_feedback_data_verification(self) -> None:
         """Auto-run EUR verification in feedback mode to keep feasibility checks consistent."""
-        if self.mode != "feedback":
+        if self.mode not in ("feedback", "feedback_final"):
             return
 
         if not self.memory.get_context("draft_loaded"):
@@ -982,7 +991,7 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
 
     def _build_data_verification_context(self) -> str:
         """Build context block with EUR verification results and pre-searched literature."""
-        if self.mode != "feedback":
+        if self.mode not in ("feedback", "feedback_final"):
             return ""
         verification = self.memory.get_context("eur_verification") or {}
         refresh = self.memory.get_context("eur_refresh_result") or {}
@@ -1062,6 +1071,18 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                 "H. Revision checklist",
                 "I. Clarifying questions",
             ]
+        elif self.mode == "feedback_final":
+            required = [
+                "A. Bottom-line verdict",
+                "B. Grading-matrix triage table",
+                "C. My understanding of the thesis",
+                "D. Minimum changes required to pass",
+                "F. Required checks on core thesis elements",
+                "G. Data and feasibility audit",
+                "H. Citation audit",
+                "I. Submission checklist",
+                "J. Clarifying questions",
+            ]
         elif self.mode == "review":
             required = [
                 "Section 1",
@@ -1091,7 +1112,7 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
 
     def _check_formatting_issues(self, content: str) -> list[str]:
         """Detect voice and math formatting violations in feedback output."""
-        if self.mode not in ("feedback_hyp_rd", "feedback"):
+        if self.mode not in ("feedback_hyp_rd", "feedback", "feedback_final"):
             return []
 
         issues: list[str] = []
@@ -1148,7 +1169,7 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
         draft_context = self._build_draft_context()
         papers_context = self._build_reference_papers_context()
 
-        if self.mode == "feedback":
+        if self.mode in ("feedback", "feedback_final"):
             self._ensure_feedback_data_verification()
             system_prompt += self._build_data_verification_context()
 
