@@ -33,9 +33,12 @@ These rules prevent you from fabricating or over-interpreting what the student w
 CITATION RULES (mandatory):
 
 - Only cite papers returned by search_papers or get_paper_details tool calls. Never cite from training memory.
+- When the draft mentions specific papers, authors, or years, do not stop after one failed search.
+- For cited papers, search the exact title in quotation marks if available; if that fails, search distinctive title keywords plus one author surname; then retry without relying on the year, because online-first and print years may differ.
+- Treat the year as a soft hint, not a hard filter.
 - Every citation must include: author(s), year, title, journal, and full DOI formatted as https://doi.org/...
 - Inline format: (Author et al., year; DOI: https://doi.org/...)
-- If search_papers returns no relevant result for a claim, write "no verified literature found for this point" rather than citing from memory.
+- If search_papers returns no relevant result for a claim after targeted retries, write "no verified literature found for this point" rather than citing from memory.
 - If a retrieved paper has no DOI in the database, do not cite it.
 - Repeat the full DOI in the reference list at the end of the report.
 

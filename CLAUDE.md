@@ -73,7 +73,7 @@ The DuckDB database (`articles.duckdb`) has three tables:
 
 ### `agent.py` - ResearchAgent
 - Core agent loop with tool calling; delegates LLM calls to `providers.py` adapters
-- Tools: `search_papers`, `get_paper_details`, `format_citation`, `save_output`, `refresh_eur_database_index`, `search_eur_databases`
+- Tools: `search_papers`, `get_paper_details`, `format_citation`, `refresh_eur_database_index`, `search_eur_databases`
 - System prompts loaded via `prompts.py` per mode
 - Anti-hallucination rules: `CITATION_RULES` and `DATA_SOURCE_RULES`
 - EUR database verification via `rainer/data/eur_databases.json` (curated list; **note**: this file must be created/populated manually)
@@ -232,7 +232,9 @@ poetry run pytest
 
 ## Agent Tools
 
-The agent exposes six tools to the LLM: `search_papers`, `get_paper_details`, `format_citation`, `save_output`, `refresh_eur_database_index`, `search_eur_databases`. See `agent.py` for full schemas and return types.
+The agent exposes five tools to the LLM: `search_papers`, `get_paper_details`, `format_citation`, `refresh_eur_database_index`, `search_eur_databases`. See `agent.py` for full schemas and return types. File saving is handled by the CLI auto-save path in `cli.py` after `/feedback`, `/review`, or `/exam-review`; the LLM does not save files itself.
+
+When adding/removing a tool, edit **three** places in `agent.py`: the `TOOLS` schema dict, the `_execute_tool` handler branch, and the `_get_google_tools()` wrapper + return list (Google provider uses Python function wrappers instead of JSON schemas).
 
 ## EUR Database Verification
 

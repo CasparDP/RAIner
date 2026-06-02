@@ -104,8 +104,15 @@ CITATION AND SOURCE RULES:
 - Follow CITATION_RULES and DATA_SOURCE_RULES strictly.
 - When the draft mentions specific papers, authors, or years, try to verify them using search_papers.
 - For draft citations, prioritize central references, the contribution paragraph, and any citation that looks important or doubtful.
+- Do NOT treat one failed search as evidence that the citation is absent.
+- Use this verification sequence for cited papers:
+  1. Search the exact paper title in quotation marks if the title is available.
+  2. If that fails, search distinctive title keywords plus one author surname.
+  3. If that fails, retry without relying on the year, because online-first, working-paper, and print years may differ.
+- Treat the year in the draft as a soft hint, not a hard filter.
+- Be robust to name formatting differences such as initials, accents, capitalization, author order, and online-first vs print-year mismatches.
 - If a cited item is found in RAiner, label it VERIFIED IN RAINER.
-- If a cited item is not found after a reasonable targeted search, label it NOT FOUND IN RAINER (MANUAL CHECK NEEDED).
+- If a cited item is not found after the verification sequence above and a reasonable targeted search, label it NOT FOUND IN RAINER (MANUAL CHECK NEEDED).
 - Do not claim that a citation is fake simply because it is not found in RAiner.
 - Only recommend additional literature if it is tool-backed.
 

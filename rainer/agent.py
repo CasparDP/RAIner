@@ -115,27 +115,6 @@ class ResearchAgent:
         {
             "type": "function",
             "function": {
-                "name": "save_output",
-                "description": "Save the current response or generated content to a markdown file.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "title": {
-                            "type": "string",
-                            "description": "Title for the output file",
-                        },
-                        "content": {
-                            "type": "string",
-                            "description": "The markdown content to save",
-                        },
-                    },
-                    "required": ["title", "content"],
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
                 "name": "refresh_eur_database_index",
                 "description": (
                     "Fetch and cache the Erasmus University Library A–Z database list "
@@ -203,8 +182,11 @@ CRITICAL CITATION RULES - YOU MUST FOLLOW THESE:
 3. NEVER cite papers from your training data - only use papers from search results
 4. If you haven't searched yet, you CANNOT cite any papers - search first
 5. When uncertain if a paper exists, use search_papers to verify before citing
-6. Use ONLY the exact titles, authors, and years returned by the tools
-7. If search returns no relevant results, say so honestly - do not make up citations
+6. Do NOT conclude that a cited paper is absent after one failed search
+7. Verification sequence for cited papers: search the exact title in quotation marks if available; if that fails, search distinctive title keywords plus one author surname; if that fails, retry without relying on the year because online-first, working-paper, and print years may differ
+8. Treat the year as a soft hint, not a hard filter, and be robust to initials, accents, capitalization, and author-order differences
+9. Use ONLY the exact titles, authors, and years returned by the tools
+10. If search returns no relevant results after targeted retries, say so honestly - do not make up citations
 
 WORKFLOW: Search first → Get details if needed → Then cite. Never skip the search step.
 """
@@ -669,15 +651,6 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                     error=f"Paper not found in database: {paper_id}",
                 )
 
-            if name == "save_output":
-                from .output import MarkdownWriter
-
-                writer = MarkdownWriter(citation_formatter=self.citation_formatter)
-                writer.set_title(arguments["title"])
-                writer.add_text(arguments["content"])
-                filepath = writer.write()
-                return ToolResult(name=name, result={"saved_to": str(filepath)})
-
             return ToolResult(
                 name=name,
                 result=None,
@@ -723,10 +696,6 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
             result = self._execute_tool("format_citation", {"paper_id": paper_id})
             return _record_tool("format_citation", result)
 
-        def save_output(title: str, content: str) -> str:
-            result = self._execute_tool("save_output", {"title": title, "content": content})
-            return _record_tool("save_output", result)
-
         def refresh_eur_database_index(force: bool = False, max_age_hours: int = 24) -> str:
             result = self._execute_tool(
                 "refresh_eur_database_index",
@@ -742,7 +711,6 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
             search_papers,
             get_paper_details,
             format_citation,
-            save_output,
             refresh_eur_database_index,
             search_eur_databases,
         ]
