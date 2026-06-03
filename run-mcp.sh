@@ -1,3 +1,4 @@
 #!/bin/bash
-cd /Users/casparm4/Github/RAiner
-exec /Users/casparm4/Library/Caches/pypoetry/virtualenvs/rainer-mZiG1ZhV-py3.12/bin/python -m rainer.mcp_server
+set -e
+cd "$HOME/Local/Github/RAiner"
+exec poetry run python -m rainer.mcp_server
