@@ -157,15 +157,16 @@ draft_context:
 
 ### Cross-machine setup (Dropbox sync)
 
-The project is configured to sync the student tracking DB and output files across
-machines via Dropbox at `/Users/casparm2/Dropbox/Github Data/rainer/`:
+RAiner can sync the student tracking DB and output files across machines by pointing
+them at a cloud-synced folder (e.g. Dropbox/iCloud), referred to below as
+`<sync-root>/rainer/`:
 
 - `data/students.duckdb` — longitudinal student tracking DB (writable)
 - `output/` — generated feedback / review reports (`.qmd`, `.pdf`)
 
 The paper database (`articles.duckdb`) and ChromaDB embeddings live under
-`/Users/casparm2/Dropbox/Github Data/cite-hustle/DB/` and are read-only for RAiner
-(written by the separate `cite-hustle` scraper).
+`<sync-root>/cite-hustle/DB/` and are read-only for RAiner (written by the separate
+`cite-hustle` scraper).
 
 **DuckDB + Dropbox safety rules** (important — WAL file corruption risk):
 
@@ -212,8 +213,8 @@ poetry install
 
 # Create embeddings (first time)
 poetry run rainer-embed \
-  --duckdb "~/Dropbox/Github Data/cite-hustle/DB/articles.duckdb" \
-  --chroma "~/Dropbox/Github Data/cite-hustle/DB/chroma" \
+  --duckdb "/path/to/cite-hustle/DB/articles.duckdb" \
+  --chroma "/path/to/cite-hustle/DB/chroma" \
   --collection paper_abstracts
 
 # Run
@@ -374,8 +375,8 @@ RAiner includes a longitudinal student tracking system (`students.py`) for manag
 ```yaml
 data:
   # Default: ./data/students.duckdb
-  # Current setup (Dropbox-synced across machines):
-  students_db_path: "/Users/casparm2/Dropbox/Github Data/rainer/data/students.duckdb"
+  # Example for a cloud-synced location (e.g. Dropbox/iCloud):
+  students_db_path: "/path/to/synced/rainer/data/students.duckdb"
 ```
 
 See the [Cross-machine setup](#cross-machine-setup-dropbox-sync) section above for

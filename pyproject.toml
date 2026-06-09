@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "RAiner - An open-source research assistant for academic work"
 readme = "README.md"
 license = "MIT"
-authors = ["Your Name <you@example.com>"]
+authors = ["Caspar David Peter <peter@rsm.nl>"]
 keywords = ["research", "assistant", "rag", "academic", "citations"]
 classifiers = [
     "Development Status :: 3 - Alpha",

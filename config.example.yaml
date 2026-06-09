@@ -72,10 +72,10 @@ provider:
 # =============================================================================
 data:
   # Path to DuckDB file with paper metadata
-  duckdb_path: "~/casparm2/Dropbox/Github Data/cite-hustle/DB/articles.duckdb"
+  duckdb_path: "/path/to/cite-hustle/DB/articles.duckdb"
 
   # Path to ChromaDB directory with embeddings
-  chroma_path: "~/casparm2/Dropbox/Github Data/cite-hustle/DB/chroma"
+  chroma_path: "/path/to/cite-hustle/DB/chroma"
 
   # Collection name in ChromaDB
   chroma_collection: paper_abstracts

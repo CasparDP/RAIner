@@ -82,3 +82,6 @@ rainer/config.example.yaml
 # Ignore backup folders
 data.local-backup/
 output.local-backup/
+THESIS_ASSISTANT_SPEC.md
+03-final
+run-mcp.sh

@@ -65,8 +65,8 @@ export OLLAMA_API_KEY="your_key_here"
 
 ```bash
 poetry run rainer-embed \
-  --duckdb "~/Dropbox/Github Data/cite-hustle/DB/articles.duckdb" \
-  --chroma "~/Dropbox/Github Data/cite-hustle/DB/chroma"
+  --duckdb "/path/to/cite-hustle/DB/articles.duckdb" \
+  --chroma "/path/to/cite-hustle/DB/chroma"
 ```
 
 This embeds all paper abstracts for semantic search. Without this, RAiner falls back to keyword search.
