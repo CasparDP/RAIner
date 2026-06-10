@@ -15,7 +15,7 @@ from typing import Any
 import duckdb
 from pydantic import BaseModel
 
-from .config import get_config
+from .config import Config, get_config
 
 
 class Student(BaseModel):
@@ -126,9 +126,9 @@ def _content_hash(text: str) -> str:
 class StudentDB:
     """Interface to the student tracking DuckDB database."""
 
-    def __init__(self, db_path: str | Path | None = None):
+    def __init__(self, db_path: str | Path | None = None, config: Config | None = None):
         if db_path is None:
-            db_path = get_config().data.students_db_path
+            db_path = (config or get_config()).data.students_db_path
         self.db_path = Path(db_path).expanduser()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.conn = duckdb.connect(str(self.db_path))

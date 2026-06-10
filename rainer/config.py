@@ -45,16 +45,32 @@ class GoogleConfig(BaseModel):
     model: str = "gemini-2.0-flash"
 
 
+class AzureOpenAIConfig(BaseModel):
+    """Azure OpenAI (OpenAI-API-compatible, EU-region capable).
+
+    `deployment` is the Azure deployment name and is used as the model id. If unset,
+    the top-level `provider.model` is used instead.
+    """
+
+    api_key: str | None = Field(default_factory=lambda: os.getenv("AZURE_OPENAI_API_KEY"))
+    endpoint: str | None = Field(default_factory=lambda: os.getenv("AZURE_OPENAI_ENDPOINT"))
+    api_version: str = Field(
+        default_factory=lambda: os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
+    )
+    deployment: str | None = Field(default_factory=lambda: os.getenv("AZURE_OPENAI_DEPLOYMENT"))
+
+
 class ProviderConfig(BaseModel):
     # ollama: local Ollama (use `ollama signin` for cloud models like gpt-oss:120b-cloud)
     # ollama-cloud: direct API access to ollama.com (requires OLLAMA_API_KEY)
     # openrouter: OpenRouter API (requires OPENROUTER_API_KEY)
     # openai: OpenAI API (requires OPENAI_API_KEY)
+    # azure-openai: Azure OpenAI (requires AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT)
     # anthropic: Anthropic API (requires ANTHROPIC_API_KEY)
     # google: Google Gemini API (requires GOOGLE_API_KEY)
-    name: Literal["ollama", "ollama-cloud", "openrouter", "openai", "anthropic", "google"] = (
-        "ollama"
-    )
+    name: Literal[
+        "ollama", "ollama-cloud", "openrouter", "openai", "azure-openai", "anthropic", "google"
+    ] = "ollama"
     model: str = "kimi-k2.5:cloud"
     temperature: float = 0.1
     # model: str = "qwen2.5:14b"  # Local Ollama model format
@@ -64,6 +80,7 @@ class ProviderConfig(BaseModel):
     ollama_cloud: OllamaCloudConfig = Field(default_factory=OllamaCloudConfig)
     openrouter: OpenRouterConfig = Field(default_factory=OpenRouterConfig)
     openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
+    azure_openai: AzureOpenAIConfig = Field(default_factory=AzureOpenAIConfig)
     anthropic: AnthropicConfig = Field(default_factory=AnthropicConfig)
     google: GoogleConfig = Field(default_factory=GoogleConfig)
 
@@ -73,6 +90,12 @@ class ProviderConfig(BaseModel):
 
 
 class DataConfig(BaseModel):
+    # Corpus backend: "duckdb" (local DuckDB + ChromaDB, the default) or "postgres"
+    # (Postgres + pgvector, for the deployed/multi-user setup). When "postgres",
+    # set postgres_dsn; duckdb_path/chroma_path are then ignored for search.
+    backend: Literal["duckdb", "postgres"] = "duckdb"
+    postgres_dsn: str | None = None  # e.g. postgresql://user:pass@host:5432/db
+
     duckdb_path: str = "./data/papers.duckdb"
     chroma_path: str = "./data/chroma"
     chroma_collection: str = "paper_abstracts"

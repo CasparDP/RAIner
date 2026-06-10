@@ -6,7 +6,7 @@ from typing import Any
 import duckdb
 from pydantic import BaseModel
 
-from .config import get_config
+from .config import Config, get_config
 
 
 class Paper(BaseModel):
@@ -76,9 +76,9 @@ class Paper(BaseModel):
 class PaperDB:
     """Interface to the DuckDB papers database."""
 
-    def __init__(self, db_path: str | Path | None = None):
+    def __init__(self, db_path: str | Path | None = None, config: Config | None = None):
         if db_path is None:
-            db_path = get_config().data.duckdb_path
+            db_path = (config or get_config()).data.duckdb_path
         self.db_path = Path(db_path).expanduser()
         self._conn: duckdb.DuckDBPyConnection | None = None
 

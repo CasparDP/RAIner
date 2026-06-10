@@ -45,10 +45,20 @@ optional = true
 docling = "^2.15.0"
 transformers = ">=4.55.0"  # Required for RT-DETRv2 model used by docling
 
+# Optional Postgres + pgvector corpus backend (for the deployed/multi-user setup).
+# Install with: poetry install --with postgres   (or: pip install "rainer[postgres]")
+[tool.poetry.group.postgres]
+optional = true
+
+[tool.poetry.group.postgres.dependencies]
+psycopg = { extras = ["binary"], version = "^3.2" }
+pgvector = "^0.3"
+
 [tool.poetry.scripts]
 rainer = "rainer.cli:main"
 rainer-embed = "rainer.embed:main"
 rainer-mcp = "rainer.mcp_server:main"
+rainer-load-pg = "rainer.pg_loader:main"
 
 [build-system]
 requires = ["poetry-core"]

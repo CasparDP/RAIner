@@ -33,9 +33,10 @@ env/
 # Poetry
 poetry.lock
 
-# IDE
+# IDE / agents
 .idea/
 .vscode/
+.claude/
 *.swp
 *.swo
 *~

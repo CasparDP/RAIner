@@ -34,6 +34,7 @@ ProviderName = Literal[
     "ollama-cloud",
     "openai",
     "openrouter",
+    "azure-openai",
     "anthropic",
     "google",
 ]
@@ -143,6 +144,13 @@ class OpenAIAdapter(ProviderAdapter, OpenAIToolsMixin):
             "tool_call_id": tool_call_id,
             "content": result_content,
         }
+
+
+class AzureOpenAIAdapter(OpenAIAdapter):
+    """Azure OpenAI uses the OpenAI-compatible API, so behaviour is identical to
+    :class:`OpenAIAdapter`. The only differences (endpoint, api-version, and using
+    the *deployment name* as the model id) live in the client passed in by the agent.
+    """
 
 
 class AnthropicAdapter(ProviderAdapter):
@@ -326,6 +334,8 @@ def create_provider_adapter(
         return OllamaAdapter(client=client, model=model, temperature=temperature)
     if provider in ("openai", "openrouter"):
         return OpenAIAdapter(client=client, model=model, temperature=temperature)
+    if provider == "azure-openai":
+        return AzureOpenAIAdapter(client=client, model=model, temperature=temperature)
     if provider == "anthropic":
         return AnthropicAdapter(client=client, model=model, temperature=temperature)
     if provider == "google":

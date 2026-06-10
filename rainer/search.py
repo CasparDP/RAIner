@@ -9,7 +9,7 @@ os.environ["ANONYMIZED_TELEMETRY"] = "False"
 os.environ["CHROMA_TELEMETRY"] = "False"
 os.environ["POSTHOG_DISABLED"] = "True"
 
-from .config import get_config
+from .config import Config, get_config
 from .papers import Paper, PaperDB
 
 
@@ -34,8 +34,9 @@ class PaperSearch:
         collection_name: str | None = None,
         embedding_model: str | None = None,
         paper_db: PaperDB | None = None,
+        config: Config | None = None,
     ):
-        config = get_config()
+        config = config or get_config()
 
         if chroma_path is None:
             chroma_path = config.data.chroma_path
@@ -47,7 +48,7 @@ class PaperSearch:
         self.chroma_path = Path(chroma_path).expanduser()
         self.collection_name = collection_name
         self.embedding_model_name = embedding_model
-        self.paper_db = paper_db or PaperDB()
+        self.paper_db = paper_db or PaperDB(config=config)
 
         # Lazy initialization
         self._client = None

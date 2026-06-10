@@ -14,9 +14,10 @@ import openai as openai_sdk
 from google import genai
 from pydantic import BaseModel
 
+from .backends import create_paper_db, create_paper_search
 from .chunking import chunk_text, estimate_tokens, extract_key_sections
 from .citations import CitationFormatter
-from .config import get_config
+from .config import Config, get_config
 from .memory import ConversationMemory
 from .papers import PaperDB
 from .prompts import resolve_prompt
@@ -218,14 +219,20 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
             "exam-review",
         ] = "feedback",
         memory: ConversationMemory | None = None,
+        config: Config | None = None,
+        paper_db: PaperDB | None = None,
+        paper_search: PaperSearch | None = None,
     ):
-        self.config = get_config()
+        # Injectable config (defaults to the global singleton). Passing a per-job
+        # config avoids mutating global state — required for concurrent/server use.
+        self.config = config or get_config()
         self.mode = mode
         self.memory = memory or ConversationMemory.new(mode=mode)
 
-        # Initialize tools
-        self.paper_db = PaperDB()
-        self.paper_search = PaperSearch(paper_db=self.paper_db)
+        # Initialize tools. The backend (DuckDB+Chroma vs Postgres+pgvector) is
+        # selected from config; explicit paper_db/paper_search override it.
+        self.paper_db = paper_db or create_paper_db(self.config)
+        self.paper_search = paper_search or create_paper_search(self.config, self.paper_db)
 
         # Citation formatter based on mode
         # Hyphenated mode names (e.g. "exam-review") map to underscore attrs ("exam_review")
@@ -298,6 +305,21 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                 api_key=api_key,
                 base_url=self.config.provider.openrouter.base_url,
             )
+
+        elif self.provider_type == "azure-openai":
+            az = self.config.provider.azure_openai
+            if not az.api_key:
+                raise ValueError("Azure OpenAI API key not set. Set AZURE_OPENAI_API_KEY in .env")
+            if not az.endpoint:
+                raise ValueError("Azure OpenAI endpoint not set. Set AZURE_OPENAI_ENDPOINT in .env")
+            self.client = openai_sdk.AzureOpenAI(
+                api_key=az.api_key,
+                azure_endpoint=az.endpoint,
+                api_version=az.api_version,
+            )
+            # Azure addresses the model by deployment name.
+            if az.deployment:
+                self.model = az.deployment
 
         elif self.provider_type == "anthropic":
             api_key = self.config.provider.anthropic.api_key

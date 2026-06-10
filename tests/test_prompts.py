@@ -1,5 +1,8 @@
 """Tests for prompt loading utilities."""
 
+from tempfile import TemporaryDirectory
+
+from rainer.config import get_config, set_config
 from rainer.prompts import (
     DEFAULT_PROMPT_DIR,
     PROMPT_FILES,
