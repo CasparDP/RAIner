@@ -9,14 +9,16 @@ RAiner generates outputs as Quarto-compatible Markdown files (`.qmd`) by default
 - **Multiple modes**: Student feedback, final pre-submission thesis feedback, writing assistance, review reports, exam review, literature search
 - **Batch processing**: Process multiple student submissions in parallel (`rainer batch feedback *.pdf`)
 - **Vector search**: Find relevant papers using semantic search via ChromaDB
+- **Pluggable corpus backend**: Local DuckDB + ChromaDB by default, or Postgres + pgvector for a deployed/multi-user setup (`data.backend`)
 - **Fallback search**: Works with keyword search even before embeddings are created
 - **Citation management**: Automatic formatting in multiple styles (inline, Quarto, BibTeX)
 - **EUR database verification**: Verify data availability at Erasmus University Library (43 databases tracked)
 - **Data feasibility audits**: Structured feedback on whether student research designs are feasible
 - **Anti-hallucination controls**: Only cite papers from search results, verify database access claims
 - **Session persistence**: Save and resume conversations
-- **Provider flexibility**: Ollama (local/cloud), OpenAI, Anthropic, Google Gemini, OpenRouter
+- **Provider flexibility**: Ollama (local/cloud), OpenAI, Anthropic, Google Gemini, OpenRouter, Azure OpenAI
 - **MCP server**: Expose RAiner tools to Claude Desktop and other MCP-compatible clients
+- **Embeddable engine**: `FeedbackEngine` facade for running one-shot feedback from external services (`from rainer import FeedbackEngine`)
 - **File output**: Generate Quarto markdown reports with proper citations
 
 ## Installation

@@ -3,9 +3,10 @@
 ## Overview
 
 RAiner is an open-source academic research assistant that runs locally. It uses:
-- **DuckDB** for paper metadata storage
-- **ChromaDB** for semantic vector search over abstracts
-- **Multiple LLM providers**: Ollama, OpenAI, Anthropic, Google Gemini, OpenRouter
+- **Pluggable corpus backend** (`data.backend`): DuckDB + ChromaDB locally (default), or Postgres + pgvector for a deployed/multi-user setup
+- **DuckDB** for paper metadata storage (default backend)
+- **ChromaDB** for semantic vector search over abstracts (default backend)
+- **Multiple LLM providers**: Ollama, OpenAI, Anthropic, Google Gemini, OpenRouter, Azure OpenAI
 - **Sentence Transformers** for embeddings (all-MiniLM-L6-v2)
 - **Quarto-compatible output**: generates `.qmd` files with YAML frontmatter (default `format: pdf`)
 
@@ -27,8 +28,12 @@ RAiner/
     ├── prompts.py          # Prompt loading utilities (resolves mode -> markdown file)
     ├── memory.py           # Session persistence (JSON files)
     ├── students.py         # Student tracking DB (DuckDB: drafts, feedback, versions)
-    ├── papers.py           # DuckDB interface for paper metadata
-    ├── search.py           # ChromaDB vector search
+    ├── papers.py           # DuckDB interface for paper metadata (default backend)
+    ├── search.py           # ChromaDB vector search (default backend)
+    ├── backends.py         # Corpus backend factory (selects duckdb vs postgres from config)
+    ├── pg_backend.py       # Postgres + pgvector backend (PgPaperDB, PgVectorSearch)
+    ├── pg_loader.py        # Load the paper corpus into Postgres + pgvector (re-embeds abstracts)
+    ├── engine.py           # FeedbackEngine: stable, embeddable facade over the agent
     ├── pdf.py              # PDF/document parsing via docling (optional)
     ├── citations.py        # BibTeX/inline/Quarto citation formatting
     ├── output.py           # Quarto/Markdown (.qmd) file generation with YAML frontmatter
@@ -42,6 +47,7 @@ RAiner/
         ├── feedback.md
         ├── feedback_hyp_rd.md
         ├── feedback_results.md
+        ├── feedback_final.md
         ├── writing.md
         ├── review.md
         ├── search.md
@@ -70,6 +76,18 @@ The DuckDB database (`articles.duckdb`) has three tables:
 - Falls back to DuckDB fulltext search if embeddings unavailable
 - Uses cosine similarity via ChromaDB's HNSW index
 - Methods: `search(query)`, `search_multiple(queries)`, `find_similar_to_paper(doi)`
+
+### `backends.py` / `pg_backend.py` / `pg_loader.py` - Corpus Backends
+- `backends.py`: factory (`create_paper_db`, `create_paper_search`) that returns the DuckDB or Postgres implementation based on `config.data.backend`
+- `pg_backend.py`: `PgPaperDB` + `PgVectorSearch` — drop-in Postgres + pgvector replacements for `PaperDB` / `PaperSearch` (psycopg/pgvector imported lazily, only when `backend: postgres`)
+- `pg_loader.py`: one-off loader that reads the DuckDB corpus, re-embeds abstracts, and writes them into Postgres + pgvector. Reads the DSN from `config.data.postgres_dsn` (or `--dsn`)
+- Config: `data.backend` (`"duckdb"` default | `"postgres"`) and `data.postgres_dsn`
+
+### `engine.py` - FeedbackEngine
+- Stable, embeddable facade over `ResearchAgent` for external callers (e.g. a web worker) so they never depend on agent internals
+- Takes an injected per-job `Config` (no global singleton mutation) and an optional `memory_context` string
+- `run(draft_text, mode, ...)` performs the `load_draft -> chat -> collect references` sequence and returns a `FeedbackResult` (report markdown, references, bibtex, provider/model metadata)
+- Exported from the package: `from rainer import FeedbackEngine, Config`
 
 ### `agent.py` - ResearchAgent
 - Core agent loop with tool calling; delegates LLM calls to `providers.py` adapters

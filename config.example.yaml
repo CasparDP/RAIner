@@ -71,6 +71,14 @@ provider:
 # Database Paths
 # =============================================================================
 data:
+  # Corpus backend for paper metadata + vector search:
+  #   duckdb   -> local DuckDB + ChromaDB (the default; uses the paths below)
+  #   postgres -> Postgres + pgvector (deployed/multi-user; set postgres_dsn)
+  backend: duckdb
+
+  # Connection string used when backend: postgres (ignored for duckdb).
+  # postgres_dsn: postgresql://user:pass@host:5432/db
+
   # Path to DuckDB file with paper metadata
   duckdb_path: "/path/to/cite-hustle/DB/articles.duckdb"
 
