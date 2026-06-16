@@ -116,12 +116,11 @@ class ResearchAgent:
         {
             "type": "function",
             "function": {
-                "name": "refresh_eur_database_index",
+                "name": "refresh_database_index",
                 "description": (
-                    "Fetch and cache the Erasmus University Library A–Z database list "
-                    "(https://libguides.eur.nl/az/databases). Use this before making any "
-                    "claims about database availability at EUR. Returns cache metadata "
-                    "and a short summary."
+                    "Fetch and cache the institution's library A–Z database list. Use this "
+                    "before making any claims about database availability at the institution. "
+                    "Returns cache metadata and a short summary."
                 ),
                 "parameters": {
                     "type": "object",
@@ -147,11 +146,11 @@ class ResearchAgent:
         {
             "type": "function",
             "function": {
-                "name": "search_eur_databases",
+                "name": "search_databases",
                 "description": (
-                    "Search the cached EUR Library A–Z database index by keyword(s) and return "
+                    "Search the cached library A–Z database index by keyword(s) and return "
                     "matching database titles and URLs. Use this to verify whether a named "
-                    "database/dataset is available via EUR subscriptions."
+                    "database/dataset is available via the institution's subscriptions."
                 ),
                 "parameters": {
                     "type": "object",
@@ -192,15 +191,16 @@ CRITICAL CITATION RULES - YOU MUST FOLLOW THESE:
 WORKFLOW: Search first → Get details if needed → Then cite. Never skip the search step.
 """
 
-    # EUR database list loaded from JSON file for comprehensive coverage
-    _EUR_DB_JSON_PATH = Path(__file__).parent / "data" / "eur_databases.json"
-    _EUR_DB_CACHE: dict | None = None
+    # Institution database list loaded from JSON (the feasibility-audit source).
+    # Default is the bundled file; override via config.data.databases_path.
+    _DB_JSON_PATH = Path(__file__).parent / "data" / "databases.json"
 
-    DATA_SOURCE_RULES = """
+    # {institution} is filled at runtime from config.institution.name in _build_prompt.
+    DATA_SOURCE_RULES_TEMPLATE = """
 CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
-1. NEVER claim a dataset/database is available at EUR unless verified via search_eur_databases results in THIS conversation
-2. ALWAYS run refresh_eur_database_index at the start of feedback mode (mandatory), then verify relevant names with search_eur_databases
-3. If you cannot verify availability, label it UNVERIFIED and propose feasible alternatives (public sources like SEC EDGAR, or other verified EUR databases)
+1. NEVER claim a dataset/database is available at {institution} unless verified via search_databases results in THIS conversation
+2. ALWAYS run refresh_database_index at the start of feedback mode (mandatory), then verify relevant names with search_databases
+3. If you cannot verify availability, label it UNVERIFIED and propose feasible alternatives (public sources like SEC EDGAR, or other verified {institution} databases)
 4. NEVER invent licensing/access details, variable coverage, fields, sample coverage, or download options
 5. Clearly label statements as VERIFIED / UNVERIFIED / ASSUMED when discussing data access or content
 6. If feasibility depends on unknown student choices (country/timeframe/unit), ask focused clarifying questions and provide fallback designs
@@ -213,6 +213,7 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
             "feedback_hyp_rd",
             "feedback_results",
             "feedback_final",
+            "grading",
             "writing",
             "review",
             "search",
@@ -249,17 +250,21 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
         # Initialize LLM client and adapter
         self._init_llm()
 
-    @classmethod
-    def _load_eur_databases(cls) -> dict:
-        """Load EUR database list from JSON file (cached)."""
-        if cls._EUR_DB_CACHE is not None:
-            return cls._EUR_DB_CACHE
+    def _load_databases(self) -> dict:
+        """Load the institution's database-access list from JSON (cached per instance).
 
+        Path comes from config.data.databases_path, falling back to the bundled file.
+        """
+        if getattr(self, "_db_cache", None) is not None:
+            return self._db_cache
+
+        path = self.config.data.databases_path
+        path = Path(path).expanduser() if path else self._DB_JSON_PATH
         try:
-            with open(cls._EUR_DB_JSON_PATH, encoding="utf-8") as f:
-                cls._EUR_DB_CACHE = json.load(f)
+            with open(path, encoding="utf-8") as f:
+                self._db_cache = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError) as e:
-            cls._EUR_DB_CACHE = {
+            self._db_cache = {
                 "databases": [
                     {"name": "WRDS", "aliases": ["wrds", "compustat", "crsp"], "status": "active"},
                     {
@@ -272,7 +277,7 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                 "not_available": [],
                 "_load_error": str(e),
             }
-        return cls._EUR_DB_CACHE
+        return self._db_cache
 
     def _init_llm(self) -> None:
         """Initialize the LLM client based on config."""
@@ -359,7 +364,7 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
     def _execute_tool(self, name: str, arguments: dict[str, Any]) -> ToolResult:
         """Execute a tool and return the result."""
         try:
-            if name == "refresh_eur_database_index":
+            if name == "refresh_database_index":
                 force = bool(arguments.get("force", False))
                 max_age_hours = int(arguments.get("max_age_hours", 24))
                 cache_key = "_eur_db_index_cache_v1"
@@ -382,12 +387,12 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                             "fetched_at": cache.get("fetched_at"),
                             "count": len(cache.get("items", [])),
                             "source_url": cache.get("source_url"),
-                            "note": "Using cached EUR database index (recent enough).",
+                            "note": "Using cached database index (recent enough).",
                         },
                     )
 
                 items: list[dict[str, str]] = []
-                source_url = "https://libguides.eur.nl/az/databases"
+                source_url = self.config.institution.library_url
 
                 html: str | None = None
                 fetch_error: str | None = None
@@ -420,7 +425,7 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                             "search e-journals",
                         ):
                             continue
-                        if "libguides.eur.nl" in href or href.startswith("http"):
+                        if href.startswith("http"):
                             items.append({"title": title, "url": href})
                     seen = set()
                     deduped = []
@@ -440,7 +445,7 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                     }
                 )
 
-                eur_data = self._load_eur_databases()
+                eur_data = self._load_databases()
                 known_count = len(eur_data.get("databases", []))
 
                 if fetch_error and not items:
@@ -453,8 +458,8 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                             "known_databases_count": known_count,
                             "source_url": source_url,
                             "warning": (
-                                "Could not fetch the live EUR database list (network error or "
-                                "JS-rendered page). However, search_eur_databases can still match "
+                                "Could not fetch the live database list (network error or "
+                                "JS-rendered page). However, search_databases can still match "
                                 "against the curated JSON list."
                             ),
                             "error": fetch_error,
@@ -471,13 +476,13 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                         "known_databases_count": known_count,
                         "source_url": source_url,
                         "note": (
-                            "LibGuides is JS-rendered, so scraped results may be incomplete. "
+                            "The live A–Z list is JS-rendered, so scraped results may be incomplete. "
                             "However, the curated JSON list is available for matching."
                         ),
                     },
                 )
 
-            if name == "search_eur_databases":
+            if name == "search_databases":
                 query = str(arguments["query"]).strip()
                 if not query:
                     return ToolResult(
@@ -490,7 +495,7 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                 top_k = int(arguments.get("top_k", 10))
                 q = query.lower()
 
-                eur_data = self._load_eur_databases()
+                eur_data = self._load_databases()
                 databases = eur_data.get("databases", [])
                 not_available = eur_data.get("not_available", [])
 
@@ -499,7 +504,7 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                     db_name = db.get("name", "")
                     aliases = db.get("aliases", [])
                     status = db.get("status", "unknown")
-                    url = db.get("url", "https://libguides.eur.nl/az/databases")
+                    url = db.get("url", self.config.institution.library_url)
                     access = db.get("access", "")
                     notes = db.get("notes", "")
                     contains = db.get("contains", [])
@@ -513,7 +518,7 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                                 "access": access,
                                 "status": status,
                                 "notes": notes,
-                                "source": "eur_database_list",
+                                "source": "database_list",
                                 "verified": status == "active",
                             }
                         )
@@ -565,9 +570,10 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                         result={
                             "matches": [],
                             "suggestion": (
-                                f"No EUR database found matching '{query}'. "
-                                "This does NOT mean it's unavailable—check libguides.eur.nl/az/databases manually "
-                                "or contact edsc@eur.nl. Mark as UNVERIFIED in your response."
+                                f"No database found matching '{query}' at {self.config.institution.name}. "
+                                "This does NOT mean it's unavailable — check the library's A–Z list at "
+                                f"{self.config.institution.library_url} manually, or ask your institution's "
+                                "data service desk. Mark as UNVERIFIED in your response."
                             ),
                         },
                     )
@@ -718,30 +724,33 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
             result = self._execute_tool("format_citation", {"paper_id": paper_id})
             return _record_tool("format_citation", result)
 
-        def refresh_eur_database_index(force: bool = False, max_age_hours: int = 24) -> str:
+        def refresh_database_index(force: bool = False, max_age_hours: int = 24) -> str:
             result = self._execute_tool(
-                "refresh_eur_database_index",
+                "refresh_database_index",
                 {"force": force, "max_age_hours": max_age_hours},
             )
-            return _record_tool("refresh_eur_database_index", result)
+            return _record_tool("refresh_database_index", result)
 
-        def search_eur_databases(query: str, top_k: int = 10) -> str:
-            result = self._execute_tool("search_eur_databases", {"query": query, "top_k": top_k})
-            return _record_tool("search_eur_databases", result)
+        def search_databases(query: str, top_k: int = 10) -> str:
+            result = self._execute_tool("search_databases", {"query": query, "top_k": top_k})
+            return _record_tool("search_databases", result)
 
         return [
             search_papers,
             get_paper_details,
             format_citation,
-            refresh_eur_database_index,
-            search_eur_databases,
+            refresh_database_index,
+            search_databases,
         ]
 
     def _build_prompt(self) -> str:
         """Build base system prompt with configurable templates and rules."""
         fallback = ""
         base = resolve_prompt(self.mode, fallback=fallback)
-        return base + "\n" + self.CITATION_RULES + "\n" + self.DATA_SOURCE_RULES
+        data_rules = self.DATA_SOURCE_RULES_TEMPLATE.format(
+            institution=self.config.institution.name
+        )
+        return base + "\n" + self.CITATION_RULES + "\n" + data_rules
 
     def _build_draft_context(self) -> str:
         """Build context block for loaded drafts."""
@@ -851,7 +860,7 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
         if not text:
             return []
         hay = text.lower()
-        eur_data = self._load_eur_databases()
+        eur_data = self._load_databases()
         names: set[str] = set()
 
         # From curated list
@@ -944,8 +953,8 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
         return topics[:3]
 
     def _ensure_feedback_data_verification(self) -> None:
-        """Auto-run EUR verification in feedback mode to keep feasibility checks consistent."""
-        if self.mode not in ("feedback", "feedback_final"):
+        """Auto-run database verification in feedback mode to keep feasibility checks consistent."""
+        if self.mode not in ("feedback", "feedback_final", "grading"):
             return
 
         if not self.memory.get_context("draft_loaded"):
@@ -957,13 +966,13 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
         if last_hash == current_hash:
             return
 
-        refresh = self._execute_tool("refresh_eur_database_index", {})
+        refresh = self._execute_tool("refresh_database_index", {})
         self.memory.set_context("eur_refresh_result", refresh.result)
 
         mentions = self._extract_dataset_mentions(draft_content)
         verification_results = {}
         for name in mentions:
-            result = self._execute_tool("search_eur_databases", {"query": name, "top_k": 5})
+            result = self._execute_tool("search_databases", {"query": name, "top_k": 5})
             verification_results[name] = result.result
 
         self.memory.set_context("eur_verification", verification_results)
@@ -980,8 +989,8 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
         self.memory.set_context("eur_verification_hash", current_hash)
 
     def _build_data_verification_context(self) -> str:
-        """Build context block with EUR verification results and pre-searched literature."""
-        if self.mode not in ("feedback", "feedback_final"):
+        """Build context block with database verification results and pre-searched literature."""
+        if self.mode not in ("feedback", "feedback_final", "grading"):
             return ""
         verification = self.memory.get_context("eur_verification") or {}
         refresh = self.memory.get_context("eur_refresh_result") or {}
@@ -989,14 +998,14 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
         if not verification and not refresh and not pre_searched:
             return ""
 
-        lines = ["\n\n--- EUR DATABASE VERIFICATION ---"]
+        lines = ["\n\n--- DATABASE VERIFICATION ---"]
         if refresh:
             lines.append("[Refresh Result]")
             lines.append(json.dumps(refresh, indent=2))
         if verification:
             lines.append("\n[Database Checks]")
             lines.append(json.dumps(verification, indent=2))
-        lines.append("\n--- END EUR DATABASE VERIFICATION ---")
+        lines.append("\n--- END DATABASE VERIFICATION ---")
 
         if pre_searched:
             lines.append(
@@ -1072,6 +1081,18 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                 "H. Citation audit",
                 "I. Submission checklist",
                 "J. Clarifying questions",
+            ]
+        elif self.mode == "grading":
+            required = [
+                "A. Suggested grade",
+                "B. Grading-matrix assessment",
+                "C. My understanding of the thesis",
+                "D. Strengths and weaknesses",
+                "E. Data and feasibility audit",
+                "F. Citation audit",
+                "G. Oral defense question set",
+                "H. Risk flags",
+                "I. Supervisor notes",
             ]
         elif self.mode == "review":
             required = [
@@ -1159,7 +1180,7 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
         draft_context = self._build_draft_context()
         papers_context = self._build_reference_papers_context()
 
-        if self.mode in ("feedback", "feedback_final"):
+        if self.mode in ("feedback", "feedback_final", "grading"):
             self._ensure_feedback_data_verification()
             system_prompt += self._build_data_verification_context()
 

@@ -89,12 +89,27 @@ class ProviderConfig(BaseModel):
         populate_by_name = True
 
 
+class InstitutionConfig(BaseModel):
+    """The institution whose library/database subscriptions the feasibility audit checks.
+
+    Defaults to EUR (the project's origin). For other deployments, override `name` and
+    `library_url`, and point `data.databases_path` at your own database-access JSON.
+    """
+
+    name: str = "EUR (Erasmus University Rotterdam)"
+    library_url: str = "https://libguides.eur.nl/az/databases"
+
+
 class DataConfig(BaseModel):
     # Corpus backend: "duckdb" (local DuckDB + ChromaDB, the default) or "postgres"
     # (Postgres + pgvector, for the deployed/multi-user setup). When "postgres",
     # set postgres_dsn; duckdb_path/chroma_path are then ignored for search.
     backend: Literal["duckdb", "postgres"] = "duckdb"
     postgres_dsn: str | None = None  # e.g. postgresql://user:pass@host:5432/db
+
+    # Path to the institution's database-access JSON (the feasibility-audit source).
+    # None = use the bundled default (rainer/data/databases.json).
+    databases_path: str | None = None
 
     duckdb_path: str = "./data/papers.duckdb"
     chroma_path: str = "./data/chroma"
@@ -123,6 +138,7 @@ class ModesConfig(BaseModel):
     feedback_final: ModeConfig = Field(
         default_factory=lambda: ModeConfig(citation_style="inline")
     )
+    grading: ModeConfig = Field(default_factory=lambda: ModeConfig(citation_style="inline"))
     writing: ModeConfig = Field(
         default_factory=lambda: ModeConfig(citation_style="quarto", bibtex_output=True)
     )
@@ -155,6 +171,7 @@ class DraftContextConfig(BaseModel):
 
 class Config(BaseModel):
     provider: ProviderConfig = Field(default_factory=ProviderConfig)
+    institution: InstitutionConfig = Field(default_factory=InstitutionConfig)
     data: DataConfig = Field(default_factory=DataConfig)
     embeddings: EmbeddingsConfig = Field(default_factory=EmbeddingsConfig)
     search: SearchConfig = Field(default_factory=SearchConfig)

@@ -1,9 +1,9 @@
 {
   "_metadata": {
     "description": "Erasmus University Rotterdam Library database access list",
-    "source": "Compiled from libguides.eur.nl, eur.nl/library, EDSC news, and manual verification",
-    "last_updated": "2026-02-03",
-    "maintainer": "Update manually when database access changes. Check eur.nl/en/library/research-support/edsc/edsc-news for updates."
+    "source": "Compiled from libguides.eur.nl, eur.nl/library, EDSC news, manual verification, and a 2026-06 WRDS schema-access probe (has_schema_privilege over the WRDS Postgres gateway; 523 of 1283 libraries accessible)",
+    "last_updated": "2026-06-16",
+    "maintainer": "Update manually when database access changes. Check eur.nl/en/library/research-support/edsc/edsc-news for updates. WRDS-delivered items can be re-verified with scripts/wrds_inventory.R."
   },
   "databases": [
     {
@@ -12,8 +12,80 @@
       "url": "https://wrds-www.wharton.upenn.edu/",
       "access": "online",
       "status": "active",
-      "notes": "Primary platform for many financial databases. Requires EUR account registration.",
-      "contains": ["Compustat", "CRSP", "I/B/E/S", "ExecuComp", "OptionMetrics", "BoardEx", "RiskMetrics", "TAQ"]
+      "notes": "Primary platform for many financial databases. Requires EUR account registration. EUR has SELECT access to ~523 WRDS libraries (verified 2026-06).",
+      "contains": ["Compustat", "CRSP", "I/B/E/S", "ExecuComp", "OptionMetrics", "BoardEx", "ISS", "RiskMetrics", "TAQ", "Audit Analytics", "S&P Capital IQ", "FactSet (Revere)", "Preqin", "PitchBook", "LPC DealScan", "FINRA TRACE", "Mergent FISD", "Markit", "RavenPack", "Revelio Labs", "RepRisk", "Bureau van Dijk", "Circana/IRI"]
+    },
+    {
+      "name": "Audit Analytics",
+      "aliases": ["audit analytics", "auditanalytics", "audit fees", "auditor data", "restatements", "internal controls", "going concern", "aaer", "audit opinions"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "Auditor, audit-fee, restatement, internal-control, and going-concern data. Verified accessible via WRDS 2026-06 (schemas: audit, audit_audit_comp, audit_acct_os). Audit Analytics Europe also available (schema: audit_europe)."
+    },
+    {
+      "name": "S&P Capital IQ",
+      "aliases": ["capital iq", "capitaliq", "ciq", "s&p capital iq", "capital iq transcripts", "ciq transcripts", "capital iq ratings", "capital structure", "key developments", "people intelligence"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "S&P Capital IQ via WRDS. Verified accessible 2026-06. Modules: company financials (ciq), earnings-call transcripts (ciq_transcripts), credit ratings (ciq_ratings), capital structure (ciq_capstrct), key developments, and people intelligence (ciq_pplintel)."
+    },
+    {
+      "name": "FactSet (via WRDS)",
+      "aliases": ["factset", "factset revere", "revere", "supply chain", "factset ownership", "business relationships"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "FactSet data modules accessible via WRDS 2026-06 (schemas: factset, revere, factsamp_revere) - e.g. Revere business relationships / supply chain and ownership. NOTE: the standalone FactSet workstation/terminal is NOT subscribed at EUR; only the WRDS-delivered FactSet data is available."
+    },
+    {
+      "name": "Preqin (via WRDS)",
+      "aliases": ["preqin", "private equity data", "private capital", "fund performance", "pe vc funds"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "Private capital / PE-VC fund and deal data. Verified accessible via WRDS 2026-06 (schema: preqin). NOTE: the standalone Preqin subscription was discontinued (2025); use the WRDS-delivered Preqin instead."
+    },
+    {
+      "name": "Circana (IRI) Retail Scanner",
+      "aliases": ["circana", "iri", "iri scanner", "retail scanner", "point of sale", "scanner data", "consumer packaged goods"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "Retail point-of-sale / scanner data (formerly IRI, now Circana). Verified accessible via WRDS 2026-06 (schemas: iri, iri_all). This is the EUR alternative to NielsenIQ scanner data, which is NOT available."
+    },
+    {
+      "name": "LPC DealScan",
+      "aliases": ["dealscan", "lpc dealscan", "syndicated loans", "loan data", "bank loans", "private debt", "loan pricing"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "Syndicated and bank loan deal data. Verified accessible via WRDS 2026-06 (schemas: dealscan, tr_dealscan)."
+    },
+    {
+      "name": "FINRA TRACE",
+      "aliases": ["trace", "finra trace", "corporate bond transactions", "bond trades", "bond prices", "bond transactions"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "Corporate bond transaction (trade-level) data. Verified accessible via WRDS 2026-06 (schemas: trace, trace_enhanced). Pair with Mergent FISD for bond characteristics."
+    },
+    {
+      "name": "RepRisk (ESG)",
+      "aliases": ["reprisk", "esg risk", "esg incidents", "controversies", "esg data", "reputational risk"],
+      "url": "https://wrds-www.wharton.upenn.edu/",
+      "access": "via WRDS",
+      "status": "active",
+      "notes": "ESG risk-incident data. Verified accessible via WRDS 2026-06 (schema: reprisk). Other ESG sources on WRDS at EUR: S&P Trucost (environmental), MSCI ESG samples, LSEG/Refinitiv ESG (tresg)."
+    },
+    {
+      "name": "Federal Judicial Center (FJC)",
+      "aliases": ["fjc", "federal judicial center", "idb", "integrated database", "federal litigation", "civil cases", "court cases", "lawsuits"],
+      "url": "https://www.fjc.gov/research/idb",
+      "access": "public",
+      "status": "active",
+      "notes": "US federal court case (litigation) data - the Integrated Database (IDB). Publicly available from fjc.gov; also mirrored on WRDS (schemas: fjc, fjc_litigation)."
     },
     {
       "name": "Compustat Global",
@@ -57,11 +129,11 @@
     },
     {
       "name": "ExecuComp",
-      "aliases": ["execucomp", "executive compensation", "ceo compensation", "ceo pay"],
+      "aliases": ["execucomp", "execcomp", "executive compensation", "ceo compensation", "ceo pay"],
       "url": "https://wrds-www.wharton.upenn.edu/",
       "access": "via WRDS",
       "status": "active",
-      "notes": "Executive compensation data for S&P 1500 firms."
+      "notes": "Executive compensation data for S&P 1500 firms (schemas: comp_execucomp, execcomp)."
     },
     {
       "name": "BoardEx",
@@ -69,15 +141,15 @@
       "url": "https://wrds-www.wharton.upenn.edu/",
       "access": "via WRDS",
       "status": "active",
-      "notes": "Board of directors, executive profiles, and network connections."
+      "notes": "Board of directors, executive profiles, and network connections. Regional coverage at EUR: NA, UK, EUR, ROW (schemas: boardex_na, boardex_uk, boardex_eur, boardex_row)."
     },
     {
       "name": "ISS (Institutional Shareholder Services)",
-      "aliases": ["iss", "institutional shareholder services", "governance", "proxy voting"],
+      "aliases": ["iss", "institutional shareholder services", "governance", "proxy voting", "incentive lab"],
       "url": "https://wrds-www.wharton.upenn.edu/",
       "access": "via WRDS",
       "status": "active",
-      "notes": "Corporate governance, director data, voting analytics."
+      "notes": "Corporate governance, director data, voting analytics, and ISS Incentive Lab (incl. Europe). Schemas: iss, risk_governance, risk_directors, iss_incentive_lab(_europe), iss_va_shareholder."
     },
     {
       "name": "OptionMetrics",
@@ -85,7 +157,7 @@
       "url": "https://wrds-www.wharton.upenn.edu/",
       "access": "via WRDS",
       "status": "active",
-      "notes": "Options prices, implied volatility, Greeks."
+      "notes": "Options prices, implied volatility, Greeks (US and Europe; schemas: optionm, optionmsamp_us, optionmsamp_europe)."
     },
     {
       "name": "Mergent FISD",
@@ -113,35 +185,35 @@
     },
     {
       "name": "S&P Transcripts",
-      "aliases": ["s&p transcripts", "earnings call transcripts", "conference call transcripts"],
+      "aliases": ["s&p transcripts", "earnings call transcripts", "conference call transcripts", "capital iq transcripts", "ciq transcripts", "s&p global transcripts"],
       "url": "https://wrds-www.wharton.upenn.edu/",
       "access": "via WRDS",
       "status": "active",
-      "notes": "Earnings call transcripts. License active until August 2026."
+      "notes": "Earnings call transcripts (the S&P Capital IQ transcripts; schema: ciq_transcripts). License active until August 2026."
     },
     {
       "name": "PitchBook",
       "aliases": ["pitchbook", "private equity data", "vc data", "venture capital"],
       "url": "https://wrds-www.wharton.upenn.edu/",
       "access": "via WRDS",
-      "status": "expiring",
-      "notes": "Private market data (startups, PE, VC). Access expires November 2025."
+      "status": "active",
+      "notes": "Private market data (startups, PE, VC). Verified accessible via WRDS 2026-06 (schema: pitchbk). Earlier records listed access expiring Nov 2025, but it is still live as of the 2026-06 probe - re-confirm before long-term reliance."
     },
     {
       "name": "Revelio Labs",
       "aliases": ["revelio", "revelio labs", "labor market data", "workforce data"],
       "url": "https://wrds-www.wharton.upenn.edu/",
       "access": "via WRDS",
-      "status": "trial",
-      "notes": "Labor market and workforce analytics. Trial access expires June 2026."
+      "status": "active",
+      "notes": "Labor market and workforce analytics. Verified accessible via WRDS 2026-06 (schemas: revelio, revelio_individual, revelio_workforce_dynamics, revelio_job_postings)."
     },
     {
       "name": "RavenPack",
       "aliases": ["ravenpack", "news sentiment", "news analytics"],
       "url": "https://wrds-www.wharton.upenn.edu/",
       "access": "via WRDS",
-      "status": "expired",
-      "notes": "News sentiment and analytics. License ended March 2025. Data must be purged per agreement."
+      "status": "trial",
+      "notes": "News sentiment and analytics. A WRDS trial is currently accessible (schema: ravenpack_trial) as of 2026-06; the full subscription was previously discontinued (2025). Treat as trial - confirm before relying on it."
     },
     {
       "name": "LSEG Workspace (formerly Eikon/Datastream)",
@@ -149,7 +221,7 @@
       "url": "https://libguides.eur.nl/edsc-manuals",
       "access": "on-campus or virtual machine",
       "status": "active",
-      "notes": "Room Y1-7 (Polak Building) - 10 terminals, no reservation. Also available via virtual machines. 2-hour daily limit.",
+      "notes": "Room Y1-7 (Polak Building) - 10 terminals, no reservation. Also available via virtual machines. 2-hour daily limit. Worldscope/Datastream content is also reachable via WRDS (schemas: trws, tr_ds).",
       "contains": ["Datastream", "Worldscope", "SDC Platinum", "Deals", "ESG data", "Credit ratings"]
     },
     {
@@ -158,7 +230,7 @@
       "url": "https://libguides.eur.nl/edsc-manuals",
       "access": "via LSEG Workspace",
       "status": "active",
-      "notes": "M&A, IPOs, joint ventures, alliances. Access via LSEG Workspace."
+      "notes": "M&A, IPOs, joint ventures, alliances. Access via LSEG Workspace; sample/linking tables also on WRDS (tr_sdc_samples)."
     },
     {
       "name": "Orbis (Bureau van Dijk)",
@@ -166,7 +238,7 @@
       "url": "https://orbis.bvdinfo.com/",
       "access": "online",
       "status": "active",
-      "notes": "Global company information, financials, ownership structures."
+      "notes": "Global company information, financials, ownership structures. Also reachable via WRDS (schemas: bvd, bvd_orbis_trial, bvd_amadeus)."
     },
     {
       "name": "Morningstar Direct",
@@ -278,7 +350,7 @@
       "url": "https://www.sec.gov/edgar",
       "access": "public",
       "status": "active",
-      "notes": "US company filings (10-K, 10-Q, 8-K, proxy statements). Publicly available."
+      "notes": "US company filings (10-K, 10-Q, 8-K, proxy statements). Publicly available. WRDS also mirrors filings text (schemas: wrdssec, wrdssec_insiders)."
     },
     {
       "name": "SSRN",
@@ -294,7 +366,7 @@
       "url": "https://wrds-www.wharton.upenn.edu/",
       "access": "via WRDS",
       "status": "active",
-      "notes": "Event study software using CRSP data."
+      "notes": "Event study software using CRSP data. WRDS also offers built-in event-study tools (schemas: wrdsapps_evtstudy_us, wrdsapps_evtstudy_int)."
     },
     {
       "name": "TAQ (Trade and Quote)",
@@ -302,7 +374,7 @@
       "url": "https://wrds-www.wharton.upenn.edu/",
       "access": "via WRDS",
       "status": "active",
-      "notes": "Intraday trades and quotes for US equities."
+      "notes": "Intraday trades and quotes for US equities (millisecond TAQ; schema: taqmsec)."
     },
     {
       "name": "RiskMetrics",
@@ -310,7 +382,7 @@
       "url": "https://wrds-www.wharton.upenn.edu/",
       "access": "via WRDS",
       "status": "active",
-      "notes": "Risk management datasets."
+      "notes": "Risk management / governance datasets (now delivered under ISS; schemas: risk, risk_governance, risk_directors)."
     },
     {
       "name": "EBSCO Business eBook Collection",
@@ -355,34 +427,24 @@
   ],
   "not_available": [
     {
-      "name": "FactSet",
-      "aliases": ["factset"],
-      "notes": "Not available at EUR. No subscription."
+      "name": "NielsenIQ (Nielsen Retail Scanner / Consumer Panel)",
+      "aliases": ["nielsen", "nielseniq", "niq", "nielsen scanner", "kilts nielsen", "consumer panel"],
+      "notes": "Not available at EUR - no Nielsen / Kilts-NielsenIQ subscription on WRDS (verified 2026-06). Closest alternative at EUR: Circana (IRI) retail scanner data via WRDS."
     },
     {
-      "name": "Capital IQ",
-      "aliases": ["capital iq", "s&p capital iq"],
-      "notes": "Not confirmed at EUR. Some data may be available via Compustat/WRDS."
+      "name": "GfK",
+      "aliases": ["gfk"],
+      "notes": "Not available at EUR - not on WRDS (verified 2026-06). For consumer/retail scanner data use Circana (IRI) via WRDS."
     },
     {
       "name": "Sustainalytics",
       "aliases": ["sustainalytics", "esg ratings"],
-      "notes": "Not confirmed at EUR. Check LSEG Workspace for ESG data alternatives."
-    },
-    {
-      "name": "Audit Analytics",
-      "aliases": ["audit analytics"],
-      "notes": "Not found in EUR database access. Verify with EDSC."
-    },
-    {
-      "name": "Preqin",
-      "aliases": ["preqin", "private equity data"],
-      "notes": "Subscription discontinued March 15, 2025 due to budget cuts. PitchBook via WRDS is alternative (until Nov 2025)."
+      "notes": "Standalone Sustainalytics not confirmed at EUR. Some ESG coverage is available via WRDS (Sustainalytics samples, MSCI ESG samples, S&P Trucost, LSEG/Refinitiv ESG, RepRisk) - verify the specific module/coverage you need."
     },
     {
       "name": "Survivor-Bias-Free Mutual Fund Database",
       "aliases": ["survivor bias free", "mutual fund database"],
-      "notes": "Access removed as of July 1, 2025."
+      "notes": "Standalone product access removed July 1, 2025. CRSP Survivor-Bias-Free US Mutual Fund data remains accessible via WRDS (schema: crsp_q_mutualfunds)."
     }
   ],
   "public_sources": [
@@ -393,6 +455,7 @@
     "CBS StatLine",
     "SSRN",
     "Federal Reserve FRED",
+    "Federal Judicial Center (FJC)",
     "Yahoo Finance",
     "Google Finance"
   ]

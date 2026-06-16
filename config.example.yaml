@@ -68,6 +68,15 @@ provider:
     model: gemini-2.0-flash
 
 # =============================================================================
+# Institution (data-availability / feasibility audit)
+# =============================================================================
+institution:
+  # The institution whose library subscriptions the feasibility audit checks.
+  # Defaults to EUR; override name + library_url for your own university.
+  name: "EUR (Erasmus University Rotterdam)"
+  library_url: "https://libguides.eur.nl/az/databases"
+
+# =============================================================================
 # Database Paths
 # =============================================================================
 data:
@@ -90,6 +99,10 @@ data:
 
   # Sessions directory for persistence
   sessions_path: ~/.local/share/rainer/sessions
+
+  # Path to the institution's database-access JSON (feasibility-audit source).
+  # Leave unset to use the bundled default (rainer/data/databases.json).
+  # databases_path: /path/to/your/databases.json
 
 # =============================================================================
 # Embedding Model
