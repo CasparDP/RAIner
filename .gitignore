@@ -57,6 +57,12 @@ chroma/
 config.yaml
 config.yml
 
+# Secrets (NEVER commit real credentials; the .example template is fine)
+secrets.csv
+**/secrets.csv
+*.pgpass
+.pgpass
+
 # Sessions
 sessions/
 

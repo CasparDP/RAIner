@@ -37,7 +37,7 @@ def print_welcome() -> None:
         Panel(
             "[bold blue]RAiner[/bold blue] - Research Assistant\n"
             "An open-source academic research assistant\n\n"
-            "Commands: /help, /load, /review, /feedback, /exam-review, /provider, /model, /sessions, /save, /refs, /quit",
+            "Commands: /help, /load, /review, /feedback, /grade, /exam-review, /provider, /model, /sessions, /save, /refs, /quit",
             title="Welcome",
             border_style="blue",
         )
@@ -61,6 +61,7 @@ def print_help() -> None:
 | `/loadpaper <file>` | Load a reference paper (PDF) for writing mode |
 | `/review [extra prompt]` | Run a structured review workflow on the loaded draft |
 | `/feedback [extra prompt]` | Run a structured student feedback report on the loaded draft |
+| `/grade [extra prompt]` | Run a SUPERVISOR grading + oral-defense report on the loaded thesis (confidential, not for the student) |
 | `/exam-review [extra prompt]` | Run a structured exam quality review on the loaded exam |
 | `/papers` | Show loaded reference papers |
 | `/save [filename]` | Save conversation to a Quarto/Markdown file (default `.qmd`) |
@@ -80,6 +81,7 @@ def print_help() -> None:
 - Then trigger specific workflows with commands:
   - `/review` to generate a reviewer-style report
   - `/feedback` to generate a student-facing feedback report
+  - `/grade` to generate a supervisor-facing grading + oral-defense report (confidential, not for the student)
   - `/exam-review` to review an exam for ambiguities and missing ingredients
   - Normal chat for ad-hoc questions and literature search
 
@@ -252,7 +254,7 @@ def main() -> None:
     batch_parser = subparsers.add_parser("batch", help="Batch process files non-interactively")
     batch_parser.add_argument(
         "workflow",
-        choices=["feedback", "feedback_hyp_rd", "feedback_results", "feedback_final", "review"],
+        choices=["feedback", "feedback_hyp_rd", "feedback_results", "feedback_final", "grading", "review"],
         help="Workflow to run on each file",
     )
     batch_parser.add_argument("files", nargs="+", help="Files to process")
@@ -277,7 +279,7 @@ def main() -> None:
     parser.add_argument(
         "-m",
         "--mode",
-        choices=["feedback", "feedback_hyp_rd", "feedback_results", "feedback_final", "writing", "review", "search", "exam-review"],
+        choices=["feedback", "feedback_hyp_rd", "feedback_results", "feedback_final", "grading", "writing", "review", "search", "exam-review"],
         help="Start in specific mode",
     )
     parser.add_argument(
@@ -406,7 +408,7 @@ def main() -> None:
                     print_help()
 
                 elif cmd == "/mode":
-                    if cmd_arg in ("feedback", "feedback_hyp_rd", "feedback_results", "feedback_final", "writing", "review", "search"):
+                    if cmd_arg in ("feedback", "feedback_hyp_rd", "feedback_results", "feedback_final", "grading", "writing", "review", "search"):
                         mode = cmd_arg  # type: ignore
                         memory = ConversationMemory.new(mode=mode)
                         agent = ResearchAgent(mode=mode, memory=memory)  # type: ignore
@@ -420,7 +422,7 @@ def main() -> None:
                         )
                     else:
                         console.print(
-                            "[yellow]Usage: /mode <feedback|feedback_hyp_rd|feedback_results|feedback_final|writing|review|search>[/yellow]"
+                            "[yellow]Usage: /mode <feedback|feedback_hyp_rd|feedback_results|feedback_final|grading|writing|review|search>[/yellow]"
                         )
 
                 elif cmd == "/sessions":
@@ -641,6 +643,70 @@ def main() -> None:
                                 console.print(
                                     f"[dim]Feedback tracking skipped: {e}[/dim]"
                                 )
+
+                elif cmd in ("/grade", "/grading"):
+                    if not memory.get_context("draft_loaded"):
+                        console.print(
+                            "[yellow]No draft loaded. Use /load <file> before running /grade.[/yellow]"
+                        )
+                    else:
+                        source_memory = memory
+                        grading_mode: Literal["grading"] = "grading"
+                        memory = ConversationMemory.new(mode=grading_mode)
+                        for key in (
+                            "draft_loaded",
+                            "draft_name",
+                            "draft_content",
+                            "draft_metadata",
+                            "draft_sections",
+                            "draft_summary",
+                            "draft_excerpt",
+                            "eur_verification",
+                            "eur_refresh_result",
+                            "eur_verification_hash",
+                        ):
+                            value = source_memory.get_context(key)
+                            if value is not None:
+                                memory.set_context(key, value)
+                        agent = ResearchAgent(mode=grading_mode, memory=memory)  # type: ignore
+                        console.print(
+                            f"[green]Started grading session {memory.session_id}[/green]"
+                        )
+                        console.print(
+                            "[yellow]CONFIDENTIAL: supervisor-facing grading report — not for the student.[/yellow]"
+                        )
+                        grading_prompt = (
+                            f"Produce the supervisor grading and oral-defense report on the loaded thesis. {cmd_arg}"
+                            if cmd_arg
+                            else "Produce the supervisor grading and oral-defense report on the loaded thesis."
+                        )
+                        console.print()
+                        with console.status(
+                            "[bold green]Grading and preparing defense questions...", spinner="dots"
+                        ):
+                            response = agent.chat(grading_prompt)
+                        console.print(Markdown(response))
+                        console.print()
+
+                        # Auto-save grading report to .qmd (supervisor-facing)
+                        try:
+                            draft_name = source_memory.get_context("draft_name") or "draft"
+                            draft_stem = Path(draft_name).stem
+                            student_name_parsed, draft_title_parsed = _parse_draft_name(draft_stem)
+                            writer = MarkdownWriter(citation_formatter=agent.citation_formatter)
+                            writer.set_title(f"Grading (CONFIDENTIAL): {draft_stem}")
+                            writer.add_metadata("date", datetime.now().strftime("%Y-%m-%d"))
+                            writer.add_metadata("type", "grading")
+                            writer.add_metadata("audience", "supervisor")
+                            writer.set_draft_info(
+                                title=draft_title_parsed or draft_stem,
+                                student=student_name_parsed,
+                            )
+                            writer.add_text(response)
+                            output_path = writer.write()
+                            console.print(f"[dim]Saved to: {output_path}[/dim]")
+                        except Exception as e:
+                            console.print(f"[dim]Auto-save failed: {e}[/dim]")
 
                 elif cmd == "/exam-review":
                     if not memory.get_context("draft_loaded"):

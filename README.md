@@ -285,22 +285,22 @@ The evidence suggests price discovery occurs primarily in limit orders [@smith20
 
 ## EUR Database Verification
 
-RAiner includes built-in verification of database access at Erasmus University Rotterdam. When reviewing student drafts, the assistant:
+RAiner includes built-in verification of database access at your institution (the bundled default is configured for EUR). When reviewing student drafts, the assistant:
 
-1. Checks if required databases are available via EUR subscriptions
+1. Checks if required databases are available via the institution's subscriptions
 2. Labels data sources as **VERIFIED** or **UNVERIFIED**
 3. Suggests alternatives for unavailable databases
 
-### Tracked Databases (43 total)
+### Tracked Databases (default: EUR)
 
-| Status            | Examples                                                  |
-| ----------------- | --------------------------------------------------------- |
-| **Active**        | WRDS, Compustat, CRSP, Orbis, LSEG Workspace, Morningstar |
-| **Trial**         | PitchBook (until Nov 2025), Revelio Labs (until Jun 2026) |
-| **Cancelled**     | Bloomberg (Apr 2024), RavenPack (Mar 2025)                |
-| **Not Available** | FactSet, Capital IQ, Preqin, Audit Analytics              |
+| Status            | Examples                                                                  |
+| ----------------- | ------------------------------------------------------------------------- |
+| **Active**        | WRDS, Compustat, CRSP, Audit Analytics, Capital IQ, Orbis, LSEG Workspace |
+| **Trial**         | RavenPack, Harvard Business eBooks (until Nov 2026)                       |
+| **Cancelled**     | Bloomberg (Apr 2024)                                                      |
+| **Not Available** | NielsenIQ, GfK, Sustainalytics (standalone)                              |
 
-The database list is maintained in `rainer/data/eur_databases.json`. Update this file when EUR database access changes.
+The database list is maintained in `rainer/data/databases.json` (the bundled default reflects EUR; set `data.databases_path` and `institution.name` for your own institution). WRDS-delivered entries are verified via `scripts/wrds_inventory.R`.
 
 ## Project Structure
 
@@ -327,7 +327,7 @@ RAiner/
     ├── embed.py            # Embedding creation script
     ├── mcp_server.py       # MCP server for Claude Desktop integration
     ├── data/
-    │   └── eur_databases.json  # EUR library database list
+    │   └── databases.json  # EUR library database list
     └── prompts/            # System prompt templates per mode
         ├── feedback.md
         ├── writing.md

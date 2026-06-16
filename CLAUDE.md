@@ -42,12 +42,13 @@ RAiner/
     ├── batch.py            # Batch processing (parallel feedback/review on multiple files)
     ├── mcp_server.py       # MCP server exposing RAiner tools (FastMCP-based)
     ├── data/
-    │   └── eur_databases.json  # EUR library database access list (curated)
+    │   └── databases.json  # institution database access list (default: EUR; via data.databases_path)
     └── prompts/            # Mode-specific system prompt templates (Markdown)
         ├── feedback.md
         ├── feedback_hyp_rd.md
         ├── feedback_results.md
         ├── feedback_final.md
+        ├── grading.md          # supervisor-facing: grade + oral-defense questions
         ├── writing.md
         ├── review.md
         ├── search.md
@@ -91,10 +92,10 @@ The DuckDB database (`articles.duckdb`) has three tables:
 
 ### `agent.py` - ResearchAgent
 - Core agent loop with tool calling; delegates LLM calls to `providers.py` adapters
-- Tools: `search_papers`, `get_paper_details`, `format_citation`, `refresh_eur_database_index`, `search_eur_databases`
+- Tools: `search_papers`, `get_paper_details`, `format_citation`, `refresh_database_index`, `search_databases`
 - System prompts loaded via `prompts.py` per mode
 - Anti-hallucination rules: `CITATION_RULES` and `DATA_SOURCE_RULES`
-- EUR database verification via `rainer/data/eur_databases.json` (curated list; **note**: this file must be created/populated manually)
+- Database availability verification via `rainer/data/databases.json` (default reflects EUR; configurable via `data.databases_path` and `institution.name`)
 - Tracks citations via `CitationFormatter`
 - Runtime provider switching via `switch_provider()`
 
@@ -106,7 +107,7 @@ The DuckDB database (`articles.duckdb`) has three tables:
 
 ### `prompts.py` - Prompt Loading
 - Loads mode-specific system prompts from `rainer/prompts/*.md`
-- Valid modes: `feedback`, `feedback_hyp_rd`, `feedback_results`, `writing`, `review`, `search`, `exam-review`
+- Valid modes: `feedback`, `feedback_hyp_rd`, `feedback_results`, `feedback_final`, `grading`, `writing`, `review`, `search`, `exam-review`
 - Supports config override for prompt directory via `output.prompt_dir`
 
 ### `mcp_server.py` - MCP Server
@@ -133,6 +134,7 @@ The DuckDB database (`articles.duckdb`) has three tables:
   - `/load <file>`: load a draft/document (PDF, DOCX, MD, TXT) into the base session
   - `/review [extra prompt]`: run a one-shot structured reviewer-style report on the loaded draft (creates a dedicated `review` session, copies draft context)
   - `/feedback [extra prompt]`: run a one-shot feedback report on the loaded draft. Inherits the current mode if it is `feedback`, `feedback_hyp_rd`, or `feedback_results`; otherwise defaults to `feedback`.
+  - `/grade [extra prompt]` (alias `/grading`): run a one-shot **supervisor-facing** grading + oral-defense report on the loaded thesis (`grading` mode). CONFIDENTIAL — third-person, includes a suggested grade band and 8 defense questions with model answers; never inherited by `/feedback`. Saved `.qmd` is tagged `type: grading`, `audience: supervisor`.
   - Normal chat: ad-hoc questions and literature search using the current base session
 - Additional commands: `/help`, `/mode`, `/provider`, `/model`, `/sessions`, `/resume`, `/loadpaper`, `/papers`, `/save`, `/refs`, `/bibtex`, `/stats`, `/info`, `/register`, `/students`, `/versions`, `/import-feedback`, `/clear`, `/quit`
 - CLI flags: `-p/--provider`, `--model`, `-m/--mode`, `-c/--config`, `-r/--resume`, `-l/--load`
@@ -251,25 +253,26 @@ poetry run pytest
 
 ## Agent Tools
 
-The agent exposes five tools to the LLM: `search_papers`, `get_paper_details`, `format_citation`, `refresh_eur_database_index`, `search_eur_databases`. See `agent.py` for full schemas and return types. File saving is handled by the CLI auto-save path in `cli.py` after `/feedback`, `/review`, or `/exam-review`; the LLM does not save files itself.
+The agent exposes five tools to the LLM: `search_papers`, `get_paper_details`, `format_citation`, `refresh_database_index`, `search_databases`. See `agent.py` for full schemas and return types. File saving is handled by the CLI auto-save path in `cli.py` after `/feedback`, `/review`, or `/exam-review`; the LLM does not save files itself.
 
 When adding/removing a tool, edit **three** places in `agent.py`: the `TOOLS` schema dict, the `_execute_tool` handler branch, and the `_get_google_tools()` wrapper + return list (Google provider uses Python function wrappers instead of JSON schemas).
 
-## EUR Database Verification
+## Database Availability Verification
 
-The agent includes tools to verify whether databases/datasets are available at Erasmus University Rotterdam:
+The agent includes tools to verify whether databases/datasets are available at the configured institution (`institution.name`, default EUR):
 
-- **`rainer/data/eur_databases.json`**: Curated list of 43 databases with access details
+- **`rainer/data/databases.json`**: Curated list of databases with access details. The bundled default reflects EUR; point `data.databases_path` at your own institution's list (and set `institution.name`/`institution.library_url`) to override.
 - **Status tracking**: active, trial, expiring, expired, cancelled
-- **Not available list**: Databases confirmed unavailable (FactSet, Preqin, etc.)
+- **Not available list**: Databases confirmed unavailable (NielsenIQ, GfK, etc.)
 - **Public sources**: SEC EDGAR, World Bank, Eurostat, etc.
+- **WRDS-delivered entries** were verified against the live WRDS subscription via `scripts/wrds_inventory.R` (2026-06)
 
-In **feedback mode**, the agent must:
-1. Call `refresh_eur_database_index` at start of session
-2. Call `search_eur_databases` for each dataset the student mentions
+In **feedback / grading mode**, the agent must:
+1. Call `refresh_database_index` at start of session
+2. Call `search_databases` for each dataset the student mentions
 3. Label data sources as VERIFIED / UNVERIFIED / ASSUMED
 
-Update `eur_databases.json` when EUR database access changes. Check [EDSC news](https://www.eur.nl/en/library/research-support/edsc/edsc-news) for updates.
+Update `databases.json` when database access changes. For EUR, check [EDSC news](https://www.eur.nl/en/library/research-support/edsc/edsc-news); WRDS-delivered access can be re-verified with `scripts/wrds_inventory.R`.
 
 ## Modes
 
@@ -278,6 +281,8 @@ Update `eur_databases.json` when EUR database access changes. Check [EDSC news](
 | feedback | inline | Student draft review with data feasibility audit (used by `/feedback` workflow) |
 | feedback_hyp_rd | inline | Hypothesis & research design focused feedback (select via `/mode feedback_hyp_rd`) |
 | feedback_results | inline | Results-design consistency feedback for drafts with empirical output (select via `/mode feedback_results`) |
+| feedback_final | inline | Student-facing last pre-submission thesis check (select via `/mode feedback_final`) |
+| grading | inline | **Supervisor-facing** grade + oral-defense questions on a final thesis (used by `/grade`; confidential, third person) |
 | writing | quarto (@key) | Paper writing assistance (used when writing with loaded reference papers) |
 | review | inline | Reviewer report writing (used by `/review` workflow) |
 | search | bibtex | Literature discovery (default base mode when starting RAiner) |

@@ -68,6 +68,7 @@ def process_single_file(
             "feedback": "Run a structured student-facing feedback report on the loaded draft.",
             "feedback_hyp_rd": "Run a structured hypothesis and research design feedback report on the loaded draft.",
             "feedback_final": "Run a structured final pre-submission MSc thesis feedback report on the loaded draft.",
+            "grading": "Produce the supervisor grading and oral-defense report on the loaded thesis.",
             "review": "Run a structured review report on the loaded draft.",
         }.get(workflow, "Run a structured report on the loaded draft.")
 
@@ -86,9 +87,14 @@ def process_single_file(
         draft_name = path.stem
         student_name, draft_title = _parse_draft_name(draft_name)
 
-        writer.set_title(f"Feedback on: {draft_name}")
+        if workflow == "grading":
+            writer.set_title(f"Grading (CONFIDENTIAL): {draft_name}")
+        else:
+            writer.set_title(f"Feedback on: {draft_name}")
         writer.add_metadata("date", datetime.now().strftime("%Y-%m-%d"))
         writer.add_metadata("type", workflow)
+        if workflow == "grading":
+            writer.add_metadata("audience", "supervisor")
         writer.set_draft_info(title=draft_title or draft_name, student=student_name)
         writer.add_text(response)
 
