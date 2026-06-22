@@ -16,6 +16,10 @@ class OllamaConfig(BaseModel):
     """Local Ollama instance. For cloud models, run `ollama signin` first."""
 
     base_url: str = "http://localhost:11434"
+    # Context window in tokens. Ollama defaults to ~4k and silently truncates longer
+    # prompts (dropping, e.g., most of a full thesis); raise this for long documents.
+    # None leaves Ollama's own default untouched.
+    num_ctx: int | None = None
 
 
 class OllamaCloudConfig(BaseModel):

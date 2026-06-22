@@ -69,18 +69,30 @@ class OpenAIToolsMixin:
 
 
 class OllamaAdapter(ProviderAdapter, OpenAIToolsMixin):
-    def __init__(self, client: ollama.Client, model: str, temperature: float = 0.3) -> None:
+    def __init__(
+        self,
+        client: ollama.Client,
+        model: str,
+        temperature: float = 0.3,
+        num_ctx: int | None = None,
+    ) -> None:
         super().__init__(model=model, temperature=temperature)
         self.client = client
+        self.num_ctx = num_ctx
 
     def generate(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> tuple[str, list[ToolCall] | None]:
+        options: dict[str, Any] = {"temperature": self.temperature}
+        if self.num_ctx:
+            # Without this, Ollama uses its small default context window and truncates
+            # long prompts (e.g. a full thesis) before the model ever sees them.
+            options["num_ctx"] = self.num_ctx
         response = self.client.chat(
             model=self.model,
             messages=messages,
             tools=self.get_openai_tools(tools),
-            options={"temperature": self.temperature},
+            options=options,
         )
         message = response["message"]
         content = message.get("content", "")
@@ -325,13 +337,16 @@ def create_provider_adapter(
     client: Any,
     google_tool_wrappers: list[Any] | None = None,
     temperature: float | None = None,
+    num_ctx: int | None = None,
 ) -> ProviderAdapter:
     """Factory for provider adapters."""
     if temperature is None:
         temperature = get_config().provider.temperature
 
     if provider in ("ollama", "ollama-cloud"):
-        return OllamaAdapter(client=client, model=model, temperature=temperature)
+        return OllamaAdapter(
+            client=client, model=model, temperature=temperature, num_ctx=num_ctx
+        )
     if provider in ("openai", "openrouter"):
         return OpenAIAdapter(client=client, model=model, temperature=temperature)
     if provider == "azure-openai":
