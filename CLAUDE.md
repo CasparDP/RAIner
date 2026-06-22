@@ -101,7 +101,7 @@ The DuckDB database (`articles.duckdb`) has three tables:
 
 ### `providers.py` - Provider Adapters
 - Abstract `ProviderAdapter` base class with `generate()` and `format_tool_result()`
-- Concrete adapters: `OllamaAdapter`, `OpenAIAdapter`, `AnthropicAdapter`, `GoogleAdapter`
+- Concrete adapters: `OllamaAdapter`, `OpenAIAdapter`, `AzureOpenAIAdapter` (subclasses `OpenAIAdapter`), `AnthropicAdapter`, `GoogleAdapter`
 - `OpenAIToolsMixin` shared by Ollama and OpenAI for tool schema formatting
 - Canonical `ToolCall` dataclass normalizes provider-specific responses
 
@@ -211,6 +211,7 @@ The `output/` folder has no such constraints — plain files, safe to sync freel
 | openrouter | OPENROUTER_API_KEY | qwen/qwen3-14b |
 | anthropic | ANTHROPIC_API_KEY | claude-sonnet-4-20250514 |
 | google | GOOGLE_API_KEY | gemini-3.0-flash |
+| azure-openai | AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT | deployment name (set via `provider.azure_openai.deployment`) |
 
 Switch providers at runtime:
 ```bash
@@ -242,6 +243,10 @@ poetry run rainer
 
 # Run as MCP server (for Claude Desktop / MCP-compatible clients)
 poetry run rainer-mcp
+
+# Optional: load the corpus into Postgres + pgvector (deployed/multi-user backend)
+poetry install --with postgres
+poetry run rainer-load-pg --dsn "postgresql://user:pass@host:5432/db"
 
 # Batch process multiple files
 rainer batch feedback submissions/*.pdf --workers 3
