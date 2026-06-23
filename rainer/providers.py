@@ -132,7 +132,7 @@ class OpenAIAdapter(ProviderAdapter, OpenAIToolsMixin):
     ) -> tuple[str, list[ToolCall] | None]:
         response = self.client.chat.completions.create(
             model=self.model,
-            messages=messages,
+            messages=self._to_openai_messages(messages),
             tools=self.get_openai_tools(tools),
             temperature=self.temperature,
         )
@@ -147,6 +147,36 @@ class OpenAIAdapter(ProviderAdapter, OpenAIToolsMixin):
                 args = json.loads(args)
             normalized.append(ToolCall(id=tc.id, name=tc.function.name, arguments=args))
         return content, normalized
+
+    @staticmethod
+    def _to_openai_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Normalise assistant tool_calls to OpenAI's wire format.
+
+        rainer's canonical history stores tool_calls as
+        {"id", "function": {"name", "arguments": <dict>}} (what Ollama/Anthropic
+        consume). The OpenAI/Azure API instead requires each tool_call to carry
+        "type": "function" and a *string* "arguments". Rewrite only those messages;
+        leave every other message (and every other adapter) untouched.
+        """
+        out: list[dict[str, Any]] = []
+        for m in messages:
+            if m.get("role") == "assistant" and m.get("tool_calls"):
+                fixed = []
+                for tc in m["tool_calls"]:
+                    fn = tc.get("function", {})
+                    args = fn.get("arguments")
+                    if not isinstance(args, str):
+                        args = json.dumps(args or {})
+                    fixed.append(
+                        {
+                            "id": tc.get("id"),
+                            "type": tc.get("type", "function"),
+                            "function": {"name": fn.get("name"), "arguments": args},
+                        }
+                    )
+                m = {**m, "tool_calls": fixed}
+            out.append(m)
+        return out
 
     def format_tool_result(
         self, tool_call_id: str, tool_name: str, result_content: str
