@@ -1192,7 +1192,7 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
             *self.memory.get_messages(),
         ]
 
-        max_iterations = 15
+        max_iterations = 45  # lit search adds tool-call rounds; gpt-5-mini sometimes searches well past 30
         content = ""
         follow_up_attempted = False
 
