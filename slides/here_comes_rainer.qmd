@@ -58,16 +58,16 @@ flowchart LR
     subgraph RAIner
         direction TB
         Load["Parse document"]
-        Agent["LLM Agent\n(tool-calling loop)"]
+        Agent["LLM Agent<br/>(tool-calling loop)"]
         Save["Auto-save .qmd"]
         Load --> Agent --> Save
     end
 
-    subgraph Data["Data Layer"]
+    subgraph Data["Data Layer (pluggable)"]
         direction TB
-        DuckDB["DuckDB\n(paper metadata)"]
-        Chroma["ChromaDB\n(semantic search)"]
-        EUR["EUR Database\n(access verification)"]
+        DuckDB["DuckDB + ChromaDB<br/>(local corpus)"]
+        PG["Postgres + pgvector<br/>(deployed corpus)"]
+        EUR["Library A–Z index<br/>(access verification)"]
     end
 
     subgraph Output
@@ -81,7 +81,7 @@ flowchart LR
 
 ## Under the Hood
 
-The core is a **tool-calling agent loop** (up to 15 iterations):
+The core is a **tool-calling agent loop** (up to 45 iterations):
 
 1. Build a system prompt from mode-specific templates + loaded draft context
 2. Send to the LLM (any supported provider)
@@ -97,8 +97,8 @@ Tools available to the LLM:
 | `search_papers` | Semantic + keyword search over paper database |
 | `get_paper_details` | Retrieve full metadata for a DOI |
 | `format_citation` | Format inline, Quarto, or BibTeX citations |
-| `search_eur_databases` | Verify database access at EUR |
-| `save_output` | Write results to .qmd file |
+| `refresh_database_index` | Fetch + cache the library's A–Z database list |
+| `search_databases` | Verify database access via library subscriptions |
 
 ## Anti-Hallucination Guardrails
 
@@ -116,7 +116,7 @@ RAIner enforces two rule sets injected into every system prompt:
 
 **Data Source Rules**
 
-- Never claim a database is available unless verified via `search_eur_databases`
+- Never claim a database is available unless verified via `search_databases`
 - Label all data claims as VERIFIED / UNVERIFIED / ASSUMED
 - Propose alternatives for unavailable databases
 
@@ -154,6 +154,7 @@ RAIner is **model-agnostic**: swap providers at runtime.
 | Ollama | Yes | Qwen 2.5, Llama 3 |
 | Ollama Cloud | No | Kimi K2 |
 | OpenAI | No | GPT-4o |
+| Azure OpenAI | No | gpt-5-mini (EU region) |
 | Anthropic | No | Claude Sonnet |
 | Google | No | Gemini 2.0 Flash |
 | OpenRouter | No | Any supported model |
@@ -163,7 +164,7 @@ RAIner is **model-agnostic**: swap providers at runtime.
 All providers are normalized through a single `ProviderAdapter` interface,
 so the agent logic stays model-agnostic.
 
-## Batch Processing
+## Batch Processing {.smaller}
 
 Process an entire class of submissions in one command:
 
@@ -176,9 +177,9 @@ rainer batch feedback submissions/*.pdf --workers 3
 flowchart LR
     Files["submissions/*.pdf"] --> Batch["rainer batch"]
 
-    Batch --> W1["Worker 1\nstudent_a.pdf"]
-    Batch --> W2["Worker 2\nstudent_b.pdf"]
-    Batch --> W3["Worker 3\nstudent_c.pdf"]
+    Batch --> W1["Worker 1<br/>student_a.pdf"]
+    Batch --> W2["Worker 2<br/>student_b.pdf"]
+    Batch --> W3["Worker 3<br/>student_c.pdf"]
 
     W1 --> O1["student_a.qmd"]
     W2 --> O2["student_b.qmd"]
@@ -191,22 +192,14 @@ Student name and draft title are parsed from the filename into YAML frontmatter.
 ## Where RAIner Sits: Not a Framework, Not a Model
 
 ```{mermaid}
-%%| fig-width: 10
+%%| fig-width: 6
 flowchart TB
-    subgraph Upstream["Upstream: Model Training"]
-        nano["nanochat\n(Karpathy)"]
-    end
+    nano["Upstream: Model Training<br/>nanochat (Karpathy)"]
+    pico["Middleware: Agent Frameworks<br/>picoagent(s)"]
+    rainer["Downstream: Domain Applications<br/>RAIner"]
 
-    subgraph Middleware["Middleware: Agent Frameworks"]
-        pico["picoagent(s)"]
-    end
-
-    subgraph Downstream["Downstream: Domain Applications"]
-        rainer["RAIner"]
-    end
-
-    nano -- "produces models" --> Middleware
-    pico -- "provides scaffolding" --> Downstream
+    nano -- "produces models" --> pico
+    pico -- "provides scaffolding" --> rainer
 
     style rainer fill:#4a9,stroke:#333,color:#fff
     style nano fill:#888,stroke:#333,color:#fff
@@ -222,22 +215,25 @@ flowchart TB
 | **Framework?** | No (training harness) | Yes | No (finished app) |
 | **Domain** | General | General | Academic research |
 | **Tools** | None | Bring your own | Paper search, citations, DB verification |
-| **Data layer** | Training datasets | None built-in | DuckDB + ChromaDB |
+| **Data layer** | Training datasets | None built-in | DuckDB + ChromaDB, or Postgres + pgvector |
 | **Output** | A trained model | Agent responses | Structured .qmd reports |
 
-## Architecture Summary
+## Architecture Summary {.smaller}
 
 :::: {.columns}
 ::: {.column width="60%"}
 ```
 rainer/
-  cli.py          # Interactive + batch entry
+  cli.py          # CLI entry point
   agent.py        # Tool-calling loop
+  engine.py       # FeedbackEngine facade
   batch.py        # Parallel processing
   providers.py    # LLM adapters
   prompts.py      # Mode-specific templates
   papers.py       # DuckDB interface
   search.py       # ChromaDB vector search
+  pg_backend.py   # Postgres + pgvector corpus
+  pdf.py          # docling document parsing
   citations.py    # Citation formatting
   output.py       # .qmd generation
   mcp_server.py   # MCP server
@@ -255,11 +251,11 @@ rainer/
 :::
 ::::
 
-## Getting Started
+## Getting Started {.smaller}
 
 ```bash
 # Install
-git clone https://github.com/yourusername/RAiner.git
+git clone https://github.com/CasparDP/RAIner.git
 cd RAiner && poetry install
 
 # Configure
@@ -279,46 +275,46 @@ RAIner is open-source (MIT). Contributions welcome.
 
 # Appendix {.appendix}
 
-## Appendix: Under the Hood — `/load` to LLM {.smaller}
+## Appendix: Under the Hood (`/load` to LLM) {.smaller}
 
 ```{mermaid}
 %%| fig-width: 12
 flowchart TD
     subgraph LOAD ["/load student_paper.pdf"]
-        A["PDF file"] --> B["docling\n(parse to markdown)"]
-        B --> C["estimate_tokens()\nlen(text) // 4"]
-        C --> D["chunk_text()\n~2000 tok chunks\n200 tok overlap"]
-        D --> E["extract_key_sections()\nAbstract, Methods, ..."]
-        E --> F["_build_draft_summary()\n400 chars per section"]
-        F --> G["Create draft_excerpt\nfull text or truncated\n(max_context_tokens)"]
+        A["PDF file"] --> B["docling<br/>(parse to markdown)"]
+        B --> C["estimate_tokens()<br/>len(text) // 4"]
+        C --> D["chunk_text()<br/>~2000 tok chunks<br/>200 tok overlap"]
+        D --> E["extract_key_sections()<br/>Abstract, Methods, ..."]
+        E --> F["_build_draft_summary()<br/>400 chars per section"]
+        F --> G["Create draft_excerpt<br/>full text or truncated<br/>(max_context_tokens)"]
     end
 
     subgraph STORE ["Memory (session JSON)"]
-        G --> H["draft_content: full text\ndraft_sections: dict\ndraft_summary: bullets\ndraft_excerpt: excerpt\ndraft_chunks: count"]
+        G --> H["draft_content: full text<br/>draft_sections: dict<br/>draft_summary: bullets<br/>draft_excerpt: excerpt<br/>draft_chunks: count"]
     end
 
     subgraph FEEDBACK ["/feedback"]
-        H --> I["_build_prompt()\nfeedback.md + CITATION_RULES\n+ DATA_SOURCE_RULES"]
-        H --> J["_build_draft_context()\nsummary + key sections + excerpt"]
-        H --> K["_ensure_feedback_data_verification()\nauto-call EUR tools"]
+        H --> I["_build_prompt()<br/>feedback.md + CITATION_RULES<br/>+ DATA_SOURCE_RULES"]
+        H --> J["_build_draft_context()<br/>summary + key sections + excerpt"]
+        H --> K["_ensure_feedback_data_verification()<br/>auto-call EUR tools"]
 
-        I --> L["SYSTEM MESSAGE\nprompt + rules + draft + EUR results"]
+        I --> L["SYSTEM MESSAGE<br/>prompt + rules + draft + EUR results"]
         J --> L
         K --> L
 
-        L --> M["messages = [\n  {system: ...},\n  {user: 'Run feedback report'}\n]"]
+        L --> M["messages = [<br/>  {system: ...},<br/>  {user: 'Run feedback report'}<br/>]"]
     end
 
     subgraph LLM ["Provider API Call"]
-        M --> N["adapter.generate(\n  messages, tools\n)"]
+        M --> N["adapter.generate(<br/>  messages, tools<br/>)"]
         N --> O{"Tool calls?"}
-        O -- "Yes" --> P["Execute tool\n(search_papers, etc.)"]
-        P --> Q["Append tool result\nto messages"]
+        O -- "Yes" --> P["Execute tool<br/>(search_papers, etc.)"]
+        P --> Q["Append tool result<br/>to messages"]
         Q --> N
-        O -- "No" --> R{"Missing\nsections?"}
-        R -- "Yes" --> S["Request missing\nsections A-I"]
+        O -- "No" --> R{"Missing<br/>sections?"}
+        R -- "Yes" --> S["Request missing<br/>sections A-I"]
         S --> N
-        R -- "No" --> T["Return final\nfeedback report"]
+        R -- "No" --> T["Return final<br/>feedback report"]
     end
 ```
 

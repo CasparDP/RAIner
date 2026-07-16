@@ -1,0 +1,577 @@
+/*-- scss:defaults --*/
+
+// RSM Official Palette
+$rsm-blue: #171c54;
+$rsm-red: #e30613;
+$rsm-ocher: #f7ab64;
+$rsm-black: #1a1a2e;
+$rsm-grey-3: #e7e8ee;
+$rsm-blue-5: #e9f1f7;
+$rsm-blue-50: #5e95c2;
+$rsm-blue-25: #93b8d6;
+$rsm-orange: #ee7656;
+
+// Tech-Professional Light Color Palette
+$arm-bg: #fafafa;
+$arm-bg-cream: #f5f3ee;
+$arm-surface: #ffffff;
+$arm-ink: #1a1a2e;
+$arm-text: #2d2d3a;
+$arm-text-secondary: #5a5a6a;
+$arm-accent: #d4652a;
+$arm-accent-bright: #ff7a2e;
+$arm-accent-2: #b0256c;
+$arm-blue: $rsm-blue;
+$arm-blue-light: #4a7298;
+$arm-oker: #c98a3d;
+$arm-grid: rgba($arm-blue, 0.04);
+$arm-hairline: rgba($arm-blue, 0.15);
+$arm-border: 1px;
+$arm-border-medium: 3px;
+$selection-bg: #ffebd6;
+
+// Typography - Tech Professional
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap");
+
+$font-family-sans-serif: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+$font-family-monospace: "JetBrains Mono", "SF Mono", Monaco, Consolas, monospace;
+$presentation-heading-font: "JetBrains Mono", monospace;
+$presentation-font-size-root: 30px;
+$presentation-h1-font-size: 2em;
+$presentation-h2-font-size: 1.5em;
+$presentation-h3-font-size: 1.2em;
+
+// Quarto / Reveal.js Variables
+$body-bg: $arm-bg;
+$body-color: $arm-text;
+$link-color: $arm-accent;
+$selection-bg: $selection-bg;
+
+/*-- scss:rules --*/
+
+:root {
+  --arm-bg: #{$arm-bg};
+  --arm-surface: #{$arm-surface};
+  --arm-text: #{$arm-text};
+  --arm-text-secondary: #{$arm-text-secondary};
+  --arm-accent: #{$arm-accent};
+  --arm-accent-2: #{$arm-accent-2};
+  --arm-blue: #{$arm-blue};
+  --arm-blue-light: #{$arm-blue-light};
+  --arm-grid: #{$arm-grid};
+  --arm-hairline: #{$arm-hairline};
+  
+  color-scheme: light;
+}
+
+::selection {
+  background: $selection-bg;
+  color: $arm-ink;
+}
+
+// Base Reveal Styles
+.reveal {
+  font-family: $font-family-sans-serif;
+  background-color: $body-bg;
+  color: $body-color;
+  
+  // Subtle tech grid background
+  background-image: 
+    linear-gradient($arm-grid 1px, transparent 1px),
+    linear-gradient(90deg, $arm-grid 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-attachment: fixed;
+}
+
+// Typography
+.reveal h1, .reveal h2, .reveal h3, .reveal h4, .reveal h5, .reveal h6 {
+  font-family: $presentation-heading-font;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: $arm-blue;
+  text-transform: none;
+}
+
+.reveal h1 {
+  font-size: $presentation-h1-font-size;
+  border-bottom: $arm-border-medium solid rgba($arm-accent, 0.6);
+  padding-bottom: 0.3em;
+  margin-bottom: 0.5em;
+}
+
+.reveal h2 {
+  font-size: $presentation-h2-font-size;
+  color: $arm-blue;
+  border-left: 3px solid $arm-accent;
+  padding-left: 0.5em;
+  margin-left: -0.5em;
+}
+
+.reveal h3 {
+  font-size: $presentation-h3-font-size;
+  color: $arm-blue-light;
+  font-weight: 500;
+}
+
+.reveal h4 {
+  font-size: 1.05em;
+  color: $arm-accent-2;
+  font-weight: 500;
+}
+
+// Links
+.reveal a {
+  color: $arm-accent;
+  text-decoration: none;
+  border-bottom: 1px solid rgba($arm-accent, 0.3);
+  transition: all 0.2s ease;
+}
+
+.reveal a:hover {
+  color: darken($arm-accent, 10%);
+  border-bottom-color: $arm-accent;
+  background-color: rgba($arm-accent, 0.08);
+}
+
+// Title Slide - Clean & Professional
+.reveal .title-slide {
+  text-align: left;
+  padding-left: 1.5rem;
+  border-left: 4px solid $arm-accent;
+}
+
+.reveal .title-slide .title {
+  font-family: $presentation-heading-font;
+  font-size: 2em;
+  font-weight: 700;
+  color: $arm-blue;
+  line-height: 1.15;
+  margin-bottom: 0.3em;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.reveal .title-slide .subtitle {
+  font-family: $font-family-sans-serif;
+  font-size: 1.2em;
+  font-weight: 400;
+  color: $arm-blue-light;
+  margin-bottom: 1.5em;
+}
+
+.reveal .title-slide .author,
+.reveal .title-slide .institute,
+.reveal .title-slide .date {
+  font-family: $font-family-sans-serif;
+  font-size: 0.9em;
+  color: $arm-text-secondary;
+  font-weight: 400;
+  margin-top: 0.3em;
+}
+
+.reveal .title-slide .author {
+  color: $arm-accent;
+  font-weight: 500;
+}
+
+// Paragraphs & Text
+.reveal p {
+  font-weight: 400;
+  line-height: 1.5;
+  margin-bottom: 0.8em;
+  color: $arm-text;
+}
+
+// Lists
+.reveal ul, .reveal ol {
+  font-weight: 400;
+  color: $arm-text;
+}
+
+.reveal ul li, .reveal ol li {
+  margin-bottom: 0.4em;
+  line-height: 1.4;
+}
+
+.reveal ul li::marker {
+  color: $arm-accent;
+}
+
+.reveal ul ul {
+  list-style: none;
+}
+
+.reveal ul ul li::before {
+  content: "→";
+  color: rgba($arm-accent, 0.8);
+  display: inline-block;
+  width: 1.2em;
+  margin-left: -1.2em;
+}
+
+// Code Blocks - Professional GitHub-style Light Theme
+.reveal pre {
+  background-color: #f6f8fa;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 1px 3px rgba(0, 0, 0, 0.06);
+  padding: 0.75em 1em;
+  margin: 0.75em 0;
+  font-size: 0.8em;
+  line-height: 1.5;
+  overflow: auto;
+  max-height: 55vh;
+}
+
+.reveal pre code {
+  font-family: $font-family-monospace;
+  background-color: transparent;
+  padding: 0;
+  color: #24292f;
+  font-size: inherit;
+  line-height: inherit;
+  border: none;
+  border-radius: 0;
+}
+
+// Inline code - subtle and professional
+.reveal :not(pre) > code {
+  font-family: $font-family-monospace;
+  font-size: 0.85em;
+  color: #cf222e;
+  background-color: rgba(175, 184, 193, 0.25);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  border: 1px solid rgba(175, 184, 193, 0.35);
+  white-space: nowrap;
+}
+
+// Code with line numbers
+.reveal pre.numberSource {
+  border-left: 3px solid #d0d7de;
+  padding-left: 0.5em;
+}
+
+.reveal pre.numberSource code > span > a:first-child::before {
+  color: #6e7781;
+  background-color: transparent;
+  border: none;
+  margin-right: 0.5em;
+  padding-right: 0.5em;
+}
+
+// Scrollbar styling for code blocks
+.reveal pre::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.reveal pre::-webkit-scrollbar-thumb {
+  background-color: #c1c1c1;
+  border-radius: 4px;
+}
+
+.reveal pre::-webkit-scrollbar-track {
+  background-color: #f1f1f1;
+  border-radius: 4px;
+}
+
+// Blockquotes
+.reveal blockquote {
+  background: $arm-bg-cream;
+  border-left: 3px solid $arm-accent;
+  padding: 0.8em 1em;
+  margin: 1em 0;
+  font-style: italic;
+  color: $arm-text-secondary;
+  border-radius: 0 4px 4px 0;
+}
+
+// Tables
+.reveal table {
+  border-collapse: collapse;
+  margin: 0.8em 0;
+  font-size: 0.85em;
+  width: 100%;
+}
+
+.reveal table th {
+  background-color: $arm-blue;
+  color: $arm-bg;
+  font-family: $presentation-heading-font;
+  font-weight: 500;
+  padding: 0.5em 0.6em;
+  text-align: left;
+}
+
+.reveal table td {
+  padding: 0.45em 0.6em;
+  border-bottom: 1px solid rgba($arm-blue, 0.1);
+}
+
+.reveal table tbody tr:nth-child(even) {
+  background-color: rgba($arm-blue, 0.03);
+}
+
+.reveal table tbody tr:hover {
+  background-color: rgba($arm-accent, 0.05);
+}
+
+// Callouts - Light Tech Cards
+.reveal .callout {
+  background-color: $arm-surface;
+  border: 1px solid rgba($arm-blue, 0.12);
+  border-radius: 6px;
+  border-left: 3px solid $arm-accent;
+  padding: 0.8em 1em;
+  margin: 0.8em 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.reveal .callout .callout-header {
+  font-family: $presentation-heading-font;
+  font-weight: 600;
+  color: $arm-accent;
+  margin-bottom: 0.3em;
+  font-size: 0.9em;
+}
+
+.reveal .callout .callout-body {
+  color: $arm-text;
+  font-size: 0.95em;
+}
+
+.reveal .callout.callout-note {
+  border-left-color: $arm-blue-light;
+}
+
+.reveal .callout.callout-note .callout-header {
+  color: $arm-blue-light;
+}
+
+.reveal .callout.callout-important,
+.reveal .callout.callout-warning {
+  border-left-color: $arm-accent-2;
+}
+
+.reveal .callout.callout-important .callout-header,
+.reveal .callout.callout-warning .callout-header {
+  color: $arm-accent-2;
+}
+
+.reveal .callout.callout-tip {
+  border-left-color: $arm-oker;
+}
+
+.reveal .callout.callout-tip .callout-header {
+  color: $arm-oker;
+}
+
+// Figures and Images - Smaller, Better Fit
+.reveal img {
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  max-width: 85%;
+  max-height: 55vh;
+  height: auto;
+  display: block;
+  margin: 0.8em auto;
+}
+
+.reveal .figure {
+  margin: 0.8em 0;
+}
+
+.reveal .figure img {
+  max-width: 85%;
+  max-height: 52vh;
+}
+
+.reveal .figure .figure-caption {
+  font-size: 0.8em;
+  color: $arm-text-secondary;
+  margin-top: 0.4em;
+  text-align: center;
+}
+
+// Plot outputs
+.reveal .plot-output,
+.reveal .shiny-plot-output {
+  max-width: 90%;
+  max-height: 55vh;
+  margin: 0.5em auto;
+}
+
+.reveal .plot-output img,
+.reveal .shiny-plot-output img {
+  max-width: 100%;
+  max-height: 55vh;
+}
+
+// etable for regression tables
+.reveal .etable {
+  width: 100%;
+  max-width: 95%;
+  margin: 0.5em auto;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.reveal .etable img {
+  max-width: 100%;
+  max-height: 50vh;
+  width: auto;
+  object-fit: contain;
+}
+
+// Progress Bar
+.reveal .progress {
+  height: 3px;
+  background-color: rgba($arm-blue, 0.1);
+}
+
+.reveal .progress span {
+  background-color: $arm-accent;
+}
+
+// Slide Number
+.reveal .slide-number {
+  background-color: transparent;
+  color: rgba($arm-text, 0.5);
+  font-family: $presentation-heading-font;
+  font-size: 0.65em;
+}
+
+// Controls
+.reveal .controls {
+  color: rgba($arm-accent, 0.7);
+}
+
+// Animations
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reveal .slides section.present h1,
+.reveal .slides section.present h2,
+.reveal .slides section.present h3 {
+  animation: fade-in-up 0.4s ease-out;
+}
+
+// Incremental reveals
+.reveal .fragment {
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.reveal .fragment.visible {
+  opacity: 1;
+}
+
+// Two-column layout
+.reveal .columns {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.reveal .column {
+  flex: 1;
+}
+
+.reveal .column img {
+  max-width: 100%;
+  max-height: 50vh;
+}
+
+// Tab panels
+.panel-tabset .nav-tabs {
+  border-bottom: 1px solid rgba($arm-blue, 0.15);
+  margin-bottom: 0.5em;
+}
+
+.panel-tabset .nav-link {
+  color: $arm-text-secondary;
+  background: transparent;
+  border: none;
+  padding: 0.4em 0.8em;
+  font-family: $presentation-heading-font;
+  font-size: 0.85em;
+}
+
+.panel-tabset .nav-link.active {
+  color: $arm-accent;
+  border-bottom: 2px solid $arm-accent;
+}
+
+.panel-tabset .nav-link:hover {
+  color: $arm-accent;
+}
+
+.panel-tabset .tab-content {
+  background-color: $arm-surface;
+  border: 1px solid rgba($arm-blue, 0.1);
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  padding: 0.8em;
+}
+
+.panel-tabset .tab-content img {
+  max-width: 90%;
+  max-height: 48vh;
+}
+
+// Logo styling
+.reveal .slide-logo {
+  position: fixed;
+  bottom: 10px;
+  right: 10px;
+  max-height: 1.2em;
+  max-width: 8%;
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.reveal .slide-logo:hover {
+  opacity: 1;
+}
+
+// Slide content container sizing
+.reveal .slides section {
+  height: auto;
+  min-height: 0;
+}
+
+.reveal .slides section > * {
+  max-width: 100%;
+}
+
+// Mobile responsiveness
+@media (max-width: 768px) {
+  .reveal .title-slide {
+    padding-left: 1rem;
+  }
+  
+  .reveal .title-slide .title {
+    font-size: 1.6em;
+  }
+  
+  .reveal .columns {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .reveal img {
+    max-width: 95%;
+    max-height: 45vh;
+  }
+}

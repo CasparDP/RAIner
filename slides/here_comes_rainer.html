@@ -6,8 +6,8 @@
 <script src="here_comes_rainer_files/libs/quarto-html/tippy.umd.min.js"></script>
 <link href="here_comes_rainer_files/libs/quarto-html/tippy.css" rel="stylesheet">
 <link href="here_comes_rainer_files/libs/quarto-html/light-border.css" rel="stylesheet">
-<link href="here_comes_rainer_files/libs/quarto-html/quarto-syntax-highlighting-a06763021a52c43c40a351ac8b799b8f.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
-  <meta name="generator" content="quarto-1.9.36">
+<link href="here_comes_rainer_files/libs/quarto-html/quarto-syntax-highlighting-de63f62b328812d8e578a4d74e282472.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
+  <meta name="generator" content="quarto-1.9.38">
 
   <title>Here Comes RAIner</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -97,7 +97,7 @@
     code span.vs { color: #032f62; } /* VerbatimString */
     code span.wa { color: #ff5555; } /* Warning */
   </style>
-  <link rel="stylesheet" href="here_comes_rainer_files/libs/revealjs/dist/theme/quarto-6f1ac78d4be8fb304166b29380e9eb68.css">
+  <link rel="stylesheet" href="here_comes_rainer_files/libs/revealjs/dist/theme/quarto-6d1c2db23f3fcb8c193f5351d400d07a.css">
   <link href="here_comes_rainer_files/libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
   <link href="here_comes_rainer_files/libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
   <link href="here_comes_rainer_files/libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
@@ -189,9 +189,6 @@
       margin-right: 0; 
     }
   </style>
-  <script src="here_comes_rainer_files/libs/quarto-diagram/mermaid.min.js"></script>
-  <script src="here_comes_rainer_files/libs/quarto-diagram/mermaid-init.js"></script>
-  <link href="here_comes_rainer_files/libs/quarto-diagram/mermaid.css" rel="stylesheet">
 </head>
 <body class="quarto-light">
   <div class="reveal">
@@ -242,39 +239,12 @@
 </section>
 <section class="slide level2 center">
 <h2>How RAIner Works</h2>
-<div class="cell" data-reveal="true" data-fig-width="10" data-layout-align="default">
+<div class="cell" data-layout-align="default">
 <div class="cell-output-display">
 <div>
 <p></p><figure class=""><p></p>
 <div>
-<pre class="mermaid mermaid-js">flowchart LR
-    subgraph Input
-        PDF["PDF / DOCX / TXT"]
-    end
-
-    subgraph RAIner
-        direction TB
-        Load["Parse document"]
-        Agent["LLM Agent\n(tool-calling loop)"]
-        Save["Auto-save .qmd"]
-        Load --&gt; Agent --&gt; Save
-    end
-
-    subgraph Data["Data Layer"]
-        direction TB
-        DuckDB["DuckDB\n(paper metadata)"]
-        Chroma["ChromaDB\n(semantic search)"]
-        EUR["EUR Database\n(access verification)"]
-    end
-
-    subgraph Output
-        QMD[".qmd report"]
-    end
-
-    PDF --&gt; Load
-    Agent &lt;--&gt; Data
-    Save --&gt; QMD
-</pre>
+<p><img data-src="here_comes_rainer_files/figure-revealjs/mermaid-figure-1.png" style="width:10in;height:1.93in"></p>
 </div>
 <p></p></figure><p></p>
 </div>
@@ -283,7 +253,7 @@
 </section>
 <section class="slide level2 center">
 <h2>Under the Hood</h2>
-<p>The core is a <strong>tool-calling agent loop</strong> (up to 15 iterations):</p>
+<p>The core is a <strong>tool-calling agent loop</strong> (up to 45 iterations):</p>
 <ol type="1">
 <li>Build a system prompt from mode-specific templates + loaded draft context</li>
 <li>Send to the LLM (any supported provider)</li>
@@ -293,6 +263,10 @@
 <div class="fragment">
 <p>Tools available to the LLM:</p>
 <table class="caption-top">
+<colgroup>
+<col style="width: 40%">
+<col style="width: 60%">
+</colgroup>
 <thead>
 <tr class="header">
 <th>Tool</th>
@@ -313,12 +287,12 @@
 <td>Format inline, Quarto, or BibTeX citations</td>
 </tr>
 <tr class="even">
-<td><code>search_eur_databases</code></td>
-<td>Verify database access at EUR</td>
+<td><code>refresh_database_index</code></td>
+<td>Fetch + cache the library’s A–Z database list</td>
 </tr>
 <tr class="odd">
-<td><code>save_output</code></td>
-<td>Write results to .qmd file</td>
+<td><code>search_databases</code></td>
+<td>Verify database access via library subscriptions</td>
 </tr>
 </tbody>
 </table>
@@ -338,7 +312,7 @@
 <div class="fragment">
 <p><strong>Data Source Rules</strong></p>
 <ul>
-<li>Never claim a database is available unless verified via <code>search_eur_databases</code></li>
+<li>Never claim a database is available unless verified via <code>search_databases</code></li>
 <li>Label all data claims as VERIFIED / UNVERIFIED / ASSUMED</li>
 <li>Propose alternatives for unavailable databases</li>
 </ul>
@@ -385,16 +359,21 @@
 <td>GPT-4o</td>
 </tr>
 <tr class="even">
+<td>Azure OpenAI</td>
+<td>No</td>
+<td>gpt-5-mini (EU region)</td>
+</tr>
+<tr class="odd">
 <td>Anthropic</td>
 <td>No</td>
 <td>Claude Sonnet</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Google</td>
 <td>No</td>
 <td>Gemini 2.0 Flash</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>OpenRouter</td>
 <td>No</td>
 <td>Any supported model</td>
@@ -405,26 +384,16 @@
 <p>All providers are normalized through a single <code>ProviderAdapter</code> interface, so the agent logic stays model-agnostic.</p>
 </div>
 </section>
-<section class="slide level2 center">
+<section class="slide level2 smaller center">
 <h2>Batch Processing</h2>
 <p>Process an entire class of submissions in one command:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="" aria-hidden="true" tabindex="-1"></a><span class="ex">rainer</span> batch feedback submissions/<span class="pp">*</span>.pdf <span class="at">--workers</span> 3</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell" data-reveal="true" data-fig-width="10" data-layout-align="default">
+<div class="cell" data-layout-align="default">
 <div class="cell-output-display">
 <div>
 <p></p><figure class=""><p></p>
 <div>
-<pre class="mermaid mermaid-js">flowchart LR
-    Files["submissions/*.pdf"] --&gt; Batch["rainer batch"]
-
-    Batch --&gt; W1["Worker 1\nstudent_a.pdf"]
-    Batch --&gt; W2["Worker 2\nstudent_b.pdf"]
-    Batch --&gt; W3["Worker 3\nstudent_c.pdf"]
-
-    W1 --&gt; O1["student_a.qmd"]
-    W2 --&gt; O2["student_b.qmd"]
-    W3 --&gt; O3["student_c.qmd"]
-</pre>
+<p><img data-src="here_comes_rainer_files/figure-revealjs/mermaid-figure-4.png" style="width:10in;height:4.21in"></p>
 </div>
 <p></p></figure><p></p>
 </div>
@@ -434,31 +403,12 @@
 </section>
 <section class="slide level2 center">
 <h2>Where RAIner Sits: Not a Framework, Not a Model</h2>
-<div class="cell" data-reveal="true" data-fig-width="10" data-layout-align="default">
+<div class="cell" data-layout-align="default">
 <div class="cell-output-display">
 <div>
 <p></p><figure class=""><p></p>
 <div>
-<pre class="mermaid mermaid-js">flowchart TB
-    subgraph Upstream["Upstream: Model Training"]
-        nano["nanochat\n(Karpathy)"]
-    end
-
-    subgraph Middleware["Middleware: Agent Frameworks"]
-        pico["picoagent(s)"]
-    end
-
-    subgraph Downstream["Downstream: Domain Applications"]
-        rainer["RAIner"]
-    end
-
-    nano -- "produces models" --&gt; Middleware
-    pico -- "provides scaffolding" --&gt; Downstream
-
-    style rainer fill:#4a9,stroke:#333,color:#fff
-    style nano fill:#888,stroke:#333,color:#fff
-    style pico fill:#888,stroke:#333,color:#fff
-</pre>
+<p><img data-src="here_comes_rainer_files/figure-revealjs/mermaid-figure-3.png" style="width:6in;height:9.7in"></p>
 </div>
 <p></p></figure><p></p>
 </div>
@@ -517,7 +467,7 @@
 <td><strong>Data layer</strong></td>
 <td>Training datasets</td>
 <td>None built-in</td>
-<td>DuckDB + ChromaDB</td>
+<td>DuckDB + ChromaDB, or Postgres + pgvector</td>
 </tr>
 <tr class="odd">
 <td><strong>Output</strong></td>
@@ -528,18 +478,21 @@
 </tbody>
 </table>
 </section>
-<section class="slide level2 center">
+<section class="slide level2 smaller center">
 <h2>Architecture Summary</h2>
 <div class="columns">
 <div class="column" style="width:60%;">
 <pre><code>rainer/
-  cli.py          # Interactive + batch entry
+  cli.py          # CLI entry point
   agent.py        # Tool-calling loop
+  engine.py       # FeedbackEngine facade
   batch.py        # Parallel processing
   providers.py    # LLM adapters
   prompts.py      # Mode-specific templates
   papers.py       # DuckDB interface
   search.py       # ChromaDB vector search
+  pg_backend.py   # Postgres + pgvector corpus
+  pdf.py          # docling document parsing
   citations.py    # Citation formatting
   output.py       # .qmd generation
   mcp_server.py   # MCP server</code></pre>
@@ -554,10 +507,10 @@
 </ul>
 </div></div>
 </section>
-<section class="slide level2 center">
+<section class="slide level2 smaller center">
 <h2>Getting Started</h2>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="" aria-hidden="true" tabindex="-1"></a><span class="co"># Install</span></span>
-<span id="cb4-2"><a href="" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/yourusername/RAiner.git</span>
+<span id="cb4-2"><a href="" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/CasparDP/RAIner.git</span>
 <span id="cb4-3"><a href="" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> RAiner <span class="kw">&amp;&amp;</span> <span class="ex">poetry</span> install</span>
 <span id="cb4-4"><a href="" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-5"><a href="" aria-hidden="true" tabindex="-1"></a><span class="co"># Configure</span></span>
@@ -571,12 +524,74 @@
 <span id="cb4-13"><a href="" aria-hidden="true" tabindex="-1"></a><span class="ex">rainer</span> batch feedback <span class="pp">*</span>.pdf <span class="at">--workers</span> 3</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="fragment">
 <p>RAIner is open-source (MIT). Contributions welcome.</p>
-
 </div>
 </section>
+<section>
+<section class="title-slide slide level1 appendix center">
+<h1>Appendix</h1>
+
+</section>
+<section class="slide level2 smaller center">
+<h2>Appendix: Under the Hood (<code>/load</code> to LLM)</h2>
+<div class="cell" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class=""><p></p>
+<div>
+<p><img data-src="here_comes_rainer_files/figure-revealjs/mermaid-figure-2.png" style="width:12in;height:28.99in"></p>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+</section>
+<section class="slide level2 smaller center">
+<h2>Appendix: Key Config Parameters</h2>
+<p>Controls how much of the draft reaches the LLM:</p>
+<table class="caption-top">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Parameter</th>
+<th>Default</th>
+<th>Cloud-friendly</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>max_context_tokens</code></td>
+<td>8,000</td>
+<td>16,000–24,000</td>
+<td>Max tokens of draft in system prompt</td>
+</tr>
+<tr class="even">
+<td><code>max_section_chars</code></td>
+<td>2,000</td>
+<td>4,000–6,000</td>
+<td>Max chars per detected section</td>
+</tr>
+<tr class="odd">
+<td><code>include_full_draft</code></td>
+<td><code>false</code></td>
+<td><code>true</code></td>
+<td>Send untruncated draft if it fits</td>
+</tr>
+</tbody>
+</table>
+<div class="fragment">
+<p>Set in <code>config.yaml</code> under <code>draft_context:</code>. Changes take effect on next RAiner launch.</p>
+<p>The chunking parameters (<code>max_chunk_tokens</code>, <code>overlap_tokens</code>) control storage granularity, <strong>not</strong> what reaches the LLM.</p>
+
+</div>
+</section></section>
     </div>
   <div class="quarto-auto-generated-content" style="display: none;">
-<p><img src="assets/Erasmus.png" class="slide-logo"></p>
 <div class="footer footer-default">
 <p>RAIner</p>
 </div>

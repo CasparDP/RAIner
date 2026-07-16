@@ -4,7 +4,10 @@ project:
 
 format:
   revealjs:
-    theme: [default, custom.scss]
+    theme: bauhaus-tech.scss
+    mermaid:
+      theme: neutral
+    mermaid-format: png
     slide-number: true
     code-line-numbers: false
     highlight-style: github
@@ -16,6 +19,4 @@ format:
     navigation-mode: linear
     controls: true
     progress: true
-    # Logo in bottom-right corner (add your logo to assets/)
-    logo: assets/Erasmus.png
     footer: "RAIner"
