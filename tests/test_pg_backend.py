@@ -1,5 +1,11 @@
 """Corpus backend selection + Postgres/pgvector mapping (no live DB needed)."""
 
+# ruff: noqa: E402  (imports must follow the importorskip guard)
+import pytest
+
+# pg_backend imports psycopg at module level; it ships in the optional postgres group
+pytest.importorskip("psycopg", reason="poetry install --with postgres")
+
 from rainer import Config
 from rainer.agent import ResearchAgent
 from rainer.backends import create_paper_db, create_paper_search

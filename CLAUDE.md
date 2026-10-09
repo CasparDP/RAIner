@@ -291,7 +291,7 @@ Update `databases.json` when database access changes. For EUR, check [EDSC news]
 | writing | quarto (@key) | Paper writing assistance (used when writing with loaded reference papers) |
 | review | inline | Reviewer report writing (used by `/review` workflow) |
 | search | bibtex | Literature discovery (default base mode when starting RAiner) |
-| exam-review | inline | Exam/quiz quality review (used by `/review` on exam documents) |
+| exam-review | inline | Exam/quiz quality review (used by `/exam-review`) |
 
 ### Feedback Mode Output Format
 
