@@ -67,6 +67,7 @@ def process_single_file(
         base_prompt = {
             "feedback": "Run a structured student-facing feedback report on the loaded draft.",
             "feedback_hyp_rd": "Run a structured hypothesis and research design feedback report on the loaded draft.",
+            "feedback_results": "Run a structured results and design consistency feedback report on the loaded draft.",
             "feedback_final": "Run a structured final pre-submission MSc thesis feedback report on the loaded draft.",
             "grading": "Produce the supervisor grading and oral-defense report on the loaded thesis.",
             "review": "Run a structured review report on the loaded draft.",

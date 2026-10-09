@@ -746,8 +746,7 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
 
     def _build_prompt(self) -> str:
         """Build base system prompt with configurable templates and rules."""
-        fallback = ""
-        base = resolve_prompt(self.mode, fallback=fallback)
+        base = resolve_prompt(self.mode)
         data_rules = self.DATA_SOURCE_RULES_TEMPLATE.format(
             institution=self.config.institution.name
         )
@@ -1045,10 +1044,11 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
         lines.append("\n--- END REVIEW PIPELINE CONTEXT ---")
         return "\n".join(lines)
 
-    def _get_missing_required_headings(self, content: str) -> list[str]:
-        """Return missing required headings for feedback/review outputs."""
-        if self.mode == "feedback":
-            required = [
+    # Required headings per mode. Modes whose prompt defines alternative output
+    # layouts (full / partial / insufficient) list each layout separately.
+    _REQUIRED_HEADING_LAYOUTS: dict[str, list[list[str]]] = {
+        "feedback": [
+            [
                 "A. Executive summary",
                 "B. My understanding of your study",
                 "C. Strengths",
@@ -1058,9 +1058,10 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                 "G. Literature & citations needed",
                 "H. Concrete revision checklist",
                 "I. Clarifying questions",
-            ]
-        elif self.mode == "feedback_hyp_rd":
-            required = [
+            ],
+        ],
+        "feedback_hyp_rd": [
+            [  # full draft
                 "A. Executive summary",
                 "B. Hypothesis Map",
                 "C. Hypothesis",  # matches "Hypothesis–Analysis Alignment Audit"
@@ -1070,9 +1071,57 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                 "G. Literature",
                 "H. Revision checklist",
                 "I. Clarifying questions",
-            ]
-        elif self.mode == "feedback_final":
-            required = [
+            ],
+            [  # partial submission
+                "A. Executive summary",
+                "B. Hypothesis Map",
+                "C. Hypothesis",
+                "D. Research Design Assessment",
+                "E. Data",
+                "F. Strengths",
+                "G. What I cannot evaluate",
+                "H. Revision checklist",
+                "I. Clarifying questions",
+            ],
+            [  # insufficient hypotheses/design
+                "A. Research Question Assessment",
+                "B. Proposed Hypotheses",
+                "C. Proposed Research Designs",
+                "D. Data Feasibility",
+                "E. What you DID provide well",
+                "F. Building-block revision checklist",
+                "G. Clarifying questions",
+            ],
+        ],
+        "feedback_results": [
+            [  # full draft with results
+                "A. Executive summary",
+                "B. Results-Design Consistency Audit",
+                "C. Specification Audit",
+                "D. Results Interpretation",
+                "E. Missing Analyses",
+                "F. Threats to Validity",
+                "G. Strengths",
+                "H. Literature",
+                "I. Revision checklist",
+                "J. Clarifying questions",
+            ],
+            [  # partial: methods present, results absent
+                "A. Executive summary",
+                "B. Design Readiness Audit",
+                "C. Pre-flight checklist",
+                "D. What I cannot evaluate",
+                "E. Clarifying questions",
+            ],
+            [  # insufficient
+                "A. What is present",
+                "B. What is needed",
+                "C. Priority revision checklist",
+                "D. Clarifying questions",
+            ],
+        ],
+        "feedback_final": [
+            [  # E (optional improvements) is conditional in the prompt, so not required
                 "A. Bottom-line verdict",
                 "B. Grading-matrix triage table",
                 "C. My understanding of the thesis",
@@ -1082,9 +1131,10 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                 "H. Citation audit",
                 "I. Submission checklist",
                 "J. Clarifying questions",
-            ]
-        elif self.mode == "grading":
-            required = [
+            ],
+        ],
+        "grading": [
+            [
                 "A. Suggested grade",
                 "B. Grading-matrix assessment",
                 "C. My understanding of the thesis",
@@ -1094,18 +1144,33 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                 "G. Oral defense question set",
                 "H. Risk flags",
                 "I. Supervisor notes",
-            ]
-        elif self.mode == "review":
-            required = [
+            ],
+        ],
+        "review": [
+            [
                 "Section 1",
                 "Section 2",
                 "Section 3",
-            ]
-        else:
+            ],
+        ],
+    }
+
+    def _get_missing_required_headings(self, content: str) -> list[str]:
+        """Return missing required headings for feedback/review outputs.
+
+        Checks against the closest layout for the mode: an empty list if any
+        layout is complete, otherwise the headings missing from the layout
+        with the fewest gaps (ties go to the first, i.e. full-draft, layout).
+        """
+        layouts = self._REQUIRED_HEADING_LAYOUTS.get(self.mode)
+        if not layouts:
             return []
 
         lower = content.lower()
-        return [heading for heading in required if heading.lower() not in lower]
+        missing_per_layout = [
+            [heading for heading in layout if heading.lower() not in lower] for layout in layouts
+        ]
+        return min(missing_per_layout, key=len)
 
     def _build_missing_sections_request(self, missing: list[str]) -> str:
         """Build a follow-up request to fill missing sections."""
@@ -1194,7 +1259,10 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
 
         max_iterations = 45  # lit search adds tool-call rounds; gpt-5-mini sometimes searches well past 30
         content = ""
-        follow_up_attempted = False
+        headings_follow_up_done = False
+        format_follow_up_done = False
+        # Report held back while the model is asked for only its missing sections
+        report_before_follow_up = ""
 
         for _ in range(max_iterations):
             content, tool_calls = self.adapter.generate(messages, self.TOOLS)
@@ -1229,9 +1297,16 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                     )
             else:
                 if content:
+                    if report_before_follow_up:
+                        # Append the returned sections to the original report, unless the
+                        # model ignored the request and sent a complete report instead
+                        if self._get_missing_required_headings(content):
+                            content = report_before_follow_up + "\n\n" + content
+                        report_before_follow_up = ""
                     missing = self._get_missing_required_headings(content)
-                    if missing and not follow_up_attempted:
-                        follow_up_attempted = True
+                    if missing and not headings_follow_up_done:
+                        headings_follow_up_done = True
+                        report_before_follow_up = content
                         messages.append({"role": "assistant", "content": content})
                         messages.append(
                             {
@@ -1242,8 +1317,8 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                         continue
                     # Programmatic verification of voice + math formatting
                     fmt_issues = self._check_formatting_issues(content)
-                    if fmt_issues and not follow_up_attempted:
-                        follow_up_attempted = True
+                    if fmt_issues and not format_follow_up_done:
+                        format_follow_up_done = True
                         messages.append({"role": "assistant", "content": content})
                         messages.append(
                             {
@@ -1256,6 +1331,9 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
                     return content
                 continue
 
+        if report_before_follow_up:
+            # Ran out of steps during the missing-sections follow-up; keep the original report
+            content = report_before_follow_up
         if content:
             self.memory.add("assistant", content)
             return content
