@@ -195,6 +195,102 @@ class AzureOpenAIAdapter(OpenAIAdapter):
     """
 
 
+class AzureResponsesAdapter(ProviderAdapter, OpenAIToolsMixin):
+    """Azure OpenAI through the Responses API (v1 endpoint).
+
+    Newer reasoning models (gpt-6.x) refuse function tools on Chat Completions, so this
+    adapter maps rainer's canonical chat history onto Responses input items and back.
+    Nothing is stored server-side (`store=False`); the full history is sent each call.
+    """
+
+    def __init__(self, client: openai_sdk.OpenAI, model: str, temperature: float = 0.1) -> None:
+        super().__init__(model=model, temperature=temperature)
+        self.client = client
+
+    def generate(
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
+    ) -> tuple[str, list[ToolCall] | None]:
+        instructions, items = self._to_input_items(messages)
+        response = self.client.responses.create(
+            model=self.model,
+            instructions=instructions or None,
+            input=items,
+            tools=self._to_response_tools(self.get_openai_tools(tools)),
+            temperature=self.temperature,
+            store=False,
+        )
+        texts: list[str] = []
+        calls: list[ToolCall] = []
+        for item in response.output:
+            if item.type == "message":
+                texts += [p.text for p in item.content if p.type == "output_text"]
+            elif item.type == "function_call":
+                args = json.loads(item.arguments) if item.arguments else {}
+                calls.append(ToolCall(id=item.call_id, name=item.name, arguments=args))
+        return "".join(texts), calls or None
+
+    @staticmethod
+    def _to_response_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Chat tools nest the schema under "function"; Responses tools are flat."""
+        out = []
+        for t in tools:
+            fn = t.get("function", t)
+            out.append(
+                {
+                    "type": "function",
+                    "name": fn["name"],
+                    "description": fn.get("description", ""),
+                    "parameters": fn.get("parameters", {"type": "object", "properties": {}}),
+                }
+            )
+        return out
+
+    @staticmethod
+    def _to_input_items(messages: list[dict[str, Any]]) -> tuple[str, list[dict[str, Any]]]:
+        """System messages become `instructions`; assistant tool calls become
+        `function_call` items and tool results `function_call_output` items."""
+        instructions: list[str] = []
+        items: list[dict[str, Any]] = []
+        call_ids: set[str] = set()
+        for m in messages:
+            role, content = m.get("role"), m.get("content") or ""
+            if role == "system":
+                instructions.append(content)
+            elif role == "tool":
+                call_id = m.get("tool_call_id")
+                if call_id in call_ids:
+                    items.append(
+                        {"type": "function_call_output", "call_id": call_id, "output": content}
+                    )
+                else:
+                    # A result from an earlier chat() turn whose call is not in the history
+                    # (memory keeps results, not calls); the API rejects an unmatched output.
+                    items.append({"role": "user", "content": f"Earlier tool result:\n{content}"})
+            else:
+                if content:
+                    items.append({"role": role, "content": content})
+                for tc in m.get("tool_calls") or []:
+                    fn = tc.get("function", {})
+                    args = fn.get("arguments")
+                    if not isinstance(args, str):
+                        args = json.dumps(args or {})
+                    call_ids.add(tc.get("id"))
+                    items.append(
+                        {
+                            "type": "function_call",
+                            "call_id": tc.get("id"),
+                            "name": fn.get("name"),
+                            "arguments": args,
+                        }
+                    )
+        return "\n\n".join(instructions), items
+
+    def format_tool_result(
+        self, tool_call_id: str, tool_name: str, result_content: str
+    ) -> dict[str, Any]:
+        return {"role": "tool", "tool_call_id": tool_call_id, "content": result_content}
+
+
 class AnthropicAdapter(ProviderAdapter):
     def __init__(
         self, client: anthropic_sdk.Anthropic, model: str, temperature: float = 0.1
@@ -368,6 +464,7 @@ def create_provider_adapter(
     google_tool_wrappers: list[Any] | None = None,
     temperature: float | None = None,
     num_ctx: int | None = None,
+    azure_api: Literal["chat", "responses"] = "chat",
 ) -> ProviderAdapter:
     """Factory for provider adapters."""
     if temperature is None:
@@ -380,6 +477,8 @@ def create_provider_adapter(
     if provider in ("openai", "openrouter"):
         return OpenAIAdapter(client=client, model=model, temperature=temperature)
     if provider == "azure-openai":
+        if azure_api == "responses":
+            return AzureResponsesAdapter(client=client, model=model, temperature=temperature)
         return AzureOpenAIAdapter(client=client, model=model, temperature=temperature)
     if provider == "anthropic":
         return AnthropicAdapter(client=client, model=model, temperature=temperature)
