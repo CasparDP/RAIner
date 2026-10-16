@@ -79,6 +79,35 @@ class ResearchAgent:
         {
             "type": "function",
             "function": {
+                "name": "lookup_paper",
+                "description": (
+                    "Find a specific paper by its exact or approximate title and/or an author "
+                    "surname. Use this to verify a cited paper before concluding it is not in "
+                    "the database."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "title": {
+                            "type": "string",
+                            "description": "Exact or approximate title (subtitle optional)",
+                        },
+                        "author": {
+                            "type": "string",
+                            "description": "One author surname, e.g. 'Fama'",
+                        },
+                        "year": {
+                            "type": "integer",
+                            "description": "Publication year (optional soft hint)",
+                        },
+                    },
+                    "required": [],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
                 "name": "get_paper_details",
                 "description": (
                     "Get full details about a specific paper by its ID. "
@@ -177,18 +206,18 @@ class ResearchAgent:
     # Anti-hallucination rules included in all prompts
     CITATION_RULES = """
 CRITICAL CITATION RULES - YOU MUST FOLLOW THESE:
-1. ONLY cite papers that were returned by the search_papers tool in THIS conversation
+1. ONLY cite papers that were returned by the search_papers or lookup_paper tool in THIS conversation
 2. NEVER invent, fabricate, or guess paper titles, authors, DOIs, or years
 3. NEVER cite papers from your training data - only use papers from search results
 4. If you haven't searched yet, you CANNOT cite any papers - search first
 5. When uncertain if a paper exists, use search_papers to verify before citing
 6. Do NOT conclude that a cited paper is absent after one failed search
-7. Verification sequence for cited papers: search the exact title in quotation marks if available; if that fails, search distinctive title keywords plus one author surname; if that fails, retry without relying on the year because online-first, working-paper, and print years may differ
+7. Verification sequence for cited papers: use lookup_paper (title, then author surname); then search_papers with the exact title in quotation marks; then distinctive title keywords plus one author surname; then retry without relying on the year because online-first, working-paper, and print years may differ
 8. Treat the year as a soft hint, not a hard filter, and be robust to initials, accents, capitalization, and author-order differences
 9. Use ONLY the exact titles, authors, and years returned by the tools
 10. If search returns no relevant results after targeted retries, say so honestly - do not make up citations
 
-WORKFLOW: Search first → Get details if needed → Then cite. Never skip the search step.
+WORKFLOW: Search or look up first → Get details if needed → Then cite. Never skip the search step.
 """
 
     # Institution database list loaded from JSON (the feasibility-audit source).
@@ -644,6 +673,41 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
                     }
                 return ToolResult(name=name, result=formatted)
 
+            if name == "lookup_paper":
+                title = arguments.get("title")
+                author = arguments.get("author")
+                if not title and not author:
+                    return ToolResult(
+                        name=name,
+                        result=None,
+                        success=False,
+                        error="Provide at least one of title or author.",
+                    )
+                papers = self.paper_db.lookup(
+                    title=title, author=author, year=arguments.get("year")
+                )
+                formatted = []
+                for paper in papers:
+                    formatted.append(
+                        {
+                            "id": paper.id,
+                            "title": paper.title,
+                            "authors": paper.authors,
+                            "year": paper.year,
+                            "abstract_snippet": (
+                                paper.abstract[:300] + "..."
+                                if paper.abstract and len(paper.abstract) > 300
+                                else paper.abstract
+                            ),
+                        }
+                    )
+                    self.seen_papers[paper.id] = {
+                        "title": paper.title,
+                        "authors": paper.authors,
+                        "year": paper.year,
+                    }
+                return ToolResult(name=name, result=formatted)
+
             if name == "get_paper_details":
                 paper_id = arguments["paper_id"]
                 if paper_id not in self.seen_papers:
@@ -653,7 +717,7 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
                         success=False,
                         error=(
                             f"Paper '{paper_id}' was not found in search results. "
-                            "You must use search_papers first to find papers before getting details."
+                            "You must use search_papers or lookup_paper first to find papers before getting details."
                         ),
                     )
                 paper = self.paper_db.get_paper(paper_id)
@@ -688,7 +752,7 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
                         success=False,
                         error=(
                             f"Paper '{paper_id}' was not found in search results. "
-                            "You must use search_papers first to find papers before citing."
+                            "You must use search_papers or lookup_paper first to find papers before citing."
                         ),
                     )
                 paper = self.paper_db.get_paper(paper_id)
@@ -745,6 +809,14 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
             )
             return _record_tool("search_papers", result)
 
+        def lookup_paper(
+            title: str | None = None, author: str | None = None, year: int | None = None
+        ) -> str:
+            result = self._execute_tool(
+                "lookup_paper", {"title": title, "author": author, "year": year}
+            )
+            return _record_tool("lookup_paper", result)
+
         def get_paper_details(paper_id: str) -> str:
             result = self._execute_tool("get_paper_details", {"paper_id": paper_id})
             return _record_tool("get_paper_details", result)
@@ -766,6 +838,7 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
 
         return [
             search_papers,
+            lookup_paper,
             get_paper_details,
             format_citation,
             refresh_database_index,
