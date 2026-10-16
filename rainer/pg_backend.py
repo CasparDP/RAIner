@@ -181,12 +181,14 @@ class PgVectorSearch:
 
         # Vector and full-text candidates are fused by reciprocal rank in one statement;
         # the returned score stays the cosine similarity so its meaning does not change.
+        # Papers without an abstract only enter through full text: their title-only embeddings
+        # crowd out better matches on topical queries (blind-judged benchmark, 2026-10-16).
         sql = f"""
             WITH vec AS (
                 SELECT doi, row_number() OVER (ORDER BY dist) AS rnk FROM (
                     SELECT p.doi, e.embedding <=> %(qv)s AS dist
                     FROM paper_embeddings e JOIN papers p ON p.doi = e.doi
-                    WHERE TRUE{conditions}
+                    WHERE p.abstract IS NOT NULL{conditions}
                     ORDER BY dist
                     LIMIT {CANDIDATES}
                 ) v

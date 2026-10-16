@@ -197,6 +197,19 @@ def test_exact_title_ranks_first_even_when_vector_is_far(pg):
 
 
 @needs_pg
+def test_paper_without_abstract_is_found_by_text_not_by_vector(pg):
+    qv = _vec(0)
+    rows = [("10.3/near", "Unrelated title", "A Author", 2000, None),
+            ("10.3/text", TARGET_TITLE, "B Author", 2001, None),
+            ("10.3/abs", "Another study on bonds", "C Author", 2002, "Abstract")]
+    _insert(pg, rows, [qv, _vec(1), _vec(2)])
+    ids = [r.paper.id for r in _search(pg, qv).search("bonds", top_k=5)]
+    assert ids == ["10.3/abs"]  # the nearest vector has no abstract and no text match
+    ids = [r.paper.id for r in _search(pg, qv).search(f'"{TARGET_TITLE}"', top_k=5)]
+    assert "10.3/text" in ids and "10.3/near" not in ids
+
+
+@needs_pg
 def test_year_filter_still_returns_top_k(pg):
     qv, _, _ = _hybrid_corpus(pg)
     results = _search(pg, qv).search("bonds", top_k=5, year_min=2005)
