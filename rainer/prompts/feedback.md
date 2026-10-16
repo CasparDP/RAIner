@@ -39,7 +39,7 @@ E. Data & Feasibility Audit (required)
   - Public sources (verified as public)
   - Institution databases (VERIFIED via search_databases results)
   - UNVERIFIED items + feasible alternatives
-- E3. Practical data acquisition plan (steps, expected effort, what to download)
+- E3. Practical data acquisition plan (steps in order, what to download)
   F. Methods & identification feedback (what would convince a reader)
   G. Literature & citations needed (use tool-backed citations only)
   H. Concrete revision checklist (10–15 actionable items)

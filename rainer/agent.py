@@ -206,6 +206,15 @@ CRITICAL DATA & DATABASE VERIFICATION RULES - YOU MUST FOLLOW THESE:
 6. If feasibility depends on unknown student choices (country/timeframe/unit), ask focused clarifying questions and provide fallback designs
 """
 
+    # Durations are guesses the model cannot ground (it does not know the student's pace,
+    # access, or circumstances), and a student may hold a supervisor to them.
+    TIME_ESTIMATE_RULES = """
+TIME ESTIMATE RULES - YOU MUST FOLLOW THESE:
+1. NEVER estimate how long a task will take: no hours, days, weeks, or months for data collection, cleaning, analysis, or writing
+2. NEVER propose timelines, schedules, or week-by-week plans; give the steps and their order instead
+3. If the draft contains its own timeline, do not judge whether its durations are realistic
+"""
+
     # Added to the system prompt whenever a draft is loaded. The draft itself is sent as a
     # separate user message inside <student_draft> tags, never as part of the system prompt.
     DRAFT_AS_DATA_RULES = """
@@ -769,7 +778,9 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
         data_rules = self.DATA_SOURCE_RULES_TEMPLATE.format(
             institution=self.config.institution.name
         )
-        return base + "\n" + self.CITATION_RULES + "\n" + data_rules
+        return (
+            base + "\n" + self.CITATION_RULES + "\n" + data_rules + "\n" + self.TIME_ESTIMATE_RULES
+        )
 
     def _build_draft_context(self) -> str:
         """Build context block for loaded drafts."""
