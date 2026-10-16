@@ -50,3 +50,14 @@ def test_resolve_prompt_fallback():
     finally:
         config.output.prompt_dir = original_prompt_dir
         set_config(config)
+
+
+def test_every_mode_forbids_time_estimates():
+    """No mode may hand a student durations or schedules (see ResearchAgent.TIME_ESTIMATE_RULES)."""
+    from rainer.agent import ResearchAgent
+    from rainer.config import Config
+
+    for mode in ("feedback", "feedback_hyp_rd", "feedback_results", "feedback_final", "review"):
+        prompt = ResearchAgent(mode=mode, config=Config())._build_prompt()
+        assert ResearchAgent.TIME_ESTIMATE_RULES in prompt
+        assert "expected effort" not in prompt
