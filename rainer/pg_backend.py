@@ -24,6 +24,22 @@ from .search import SearchResult
 # Columns selected (and their order) for mapping a row to a Paper.
 _PAPER_COLUMNS = "doi, title, authors, year, journal, issn, abstract, ssrn_id, ssrn_url"
 
+# Hybrid search: reciprocal rank fusion of vector and full-text candidates.
+RRF_K = 60
+CANDIDATES = 50  # candidates fetched per ranker before fusion
+HNSW_EF_SEARCH = 200  # pgvector's default (40) is too shallow when a year filter drops rows
+
+
+# lookup(): a title matches at word_similarity >= 0.5 (cited title missing its subtitle)
+# or whole-title similarity >= 0.3 (typos, reordering).
+TITLE_WORD_SIMILARITY = 0.5
+TITLE_SIMILARITY = 0.3
+
+
+def embedding_text(title: str | None, abstract: str | None) -> str:
+    """Text embedded for a paper: title + abstract, or the title alone without an abstract."""
+    return f"{title}. {abstract}" if abstract else title or ""
+
 
 def _normalize_dsn(dsn: str | None) -> str:
     """Turn a SQLAlchemy-style URL into a libpq DSN psycopg accepts."""
@@ -65,7 +81,8 @@ class PgPaperDB:
     def conn(self) -> psycopg.Connection:
         """Lazy connection (registers the pgvector type adapter)."""
         if self._conn is None or self._conn.closed:
-            self._conn = psycopg.connect(self.dsn)
+            # autocommit: read-only use, and SET LOCAL in search() must end with its transaction
+            self._conn = psycopg.connect(self.dsn, autocommit=True)
             register_vector(self._conn)
         return self._conn
 
@@ -76,6 +93,45 @@ class PgPaperDB:
             )
             row = cur.fetchone()
         return _row_to_paper(row) if row else None
+
+    def lookup(
+        self,
+        title: str | None = None,
+        author: str | None = None,
+        year: int | None = None,
+        limit: int = 10,
+    ) -> list[Paper]:
+        """Find papers by approximate title and/or author surname; year only orders results."""
+        conditions: list[str] = []
+        params: dict[str, object] = {"limit": limit}
+        order: list[str] = []
+        if year is not None:
+            params["year"] = year
+            order.append("coalesce(abs(year - %(year)s) <= 1, false) DESC")
+        if title:
+            params["title"] = title
+            # The operators are word_similarity >= 0.5 OR similarity >= 0.3 (thresholds set below);
+            # unlike the functions they can use the trigram index.
+            conditions.append("(%(title)s <%% title OR title %% %(title)s)")
+            order.append(
+                "greatest(word_similarity(%(title)s, title), similarity(title, %(title)s)) DESC"
+            )
+        if author:
+            escaped = author.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            params["author"] = f"%{escaped}%"
+            conditions.append("authors ILIKE %(author)s")
+        if not conditions:
+            return []
+        order.append("year DESC NULLS LAST")
+        sql = (
+            f"SELECT {_PAPER_COLUMNS} FROM papers WHERE {' AND '.join(conditions)} "
+            f"ORDER BY {', '.join(order)} LIMIT %(limit)s"
+        )
+        with self.conn.pipeline(), self.conn.transaction(), self.conn.cursor() as cur:
+            cur.execute(f"SET LOCAL pg_trgm.word_similarity_threshold = {TITLE_WORD_SIMILARITY}")
+            cur.execute(f"SET LOCAL pg_trgm.similarity_threshold = {TITLE_SIMILARITY}")
+            cur.execute(sql, params)
+            return [_row_to_paper(row) for row in cur.fetchall()]
 
     def close(self) -> None:
         if self._conn is not None and not self._conn.closed:
@@ -115,7 +171,7 @@ class PgVectorSearch:
         qv = self._embed(query)
 
         conditions = ""
-        params: dict[str, object] = {"qv": qv, "k": top_k}
+        params: dict[str, object] = {"qv": qv, "q": query, "k": top_k}
         if year_min is not None:
             conditions += " AND p.year >= %(ymin)s"
             params["ymin"] = year_min
@@ -123,16 +179,44 @@ class PgVectorSearch:
             conditions += " AND p.year <= %(ymax)s"
             params["ymax"] = year_max
 
+        # Vector and full-text candidates are fused by reciprocal rank in one statement;
+        # the returned score stays the cosine similarity so its meaning does not change.
         sql = f"""
+            WITH vec AS (
+                SELECT doi, row_number() OVER (ORDER BY dist) AS rnk FROM (
+                    SELECT p.doi, e.embedding <=> %(qv)s AS dist
+                    FROM paper_embeddings e JOIN papers p ON p.doi = e.doi
+                    WHERE TRUE{conditions}
+                    ORDER BY dist
+                    LIMIT {CANDIDATES}
+                ) v
+            ), fts AS (
+                SELECT doi, row_number() OVER (ORDER BY rank DESC) AS rnk FROM (
+                    SELECT p.doi, ts_rank_cd(p.search_tsv, tsq.q) AS rank
+                    FROM papers p, websearch_to_tsquery('english', %(q)s) AS tsq(q)
+                    WHERE p.search_tsv @@ tsq.q{conditions}
+                    ORDER BY rank DESC
+                    LIMIT {CANDIDATES}
+                ) t
+            ), fused AS (
+                SELECT doi, sum(1.0 / ({RRF_K} + rnk)) AS rrf
+                FROM (SELECT doi, rnk FROM vec UNION ALL SELECT doi, rnk FROM fts) c
+                GROUP BY doi
+                ORDER BY rrf DESC, doi
+                LIMIT %(k)s
+            )
             SELECT {", ".join(f"p.{c.strip()}" for c in _PAPER_COLUMNS.split(","))},
                    1 - (e.embedding <=> %(qv)s) AS score
-            FROM papers p
-            JOIN paper_embeddings e ON p.doi = e.doi
-            WHERE TRUE{conditions}
-            ORDER BY e.embedding <=> %(qv)s
-            LIMIT %(k)s
+            FROM fused f
+            JOIN papers p ON p.doi = f.doi
+            JOIN paper_embeddings e ON e.doi = f.doi
+            ORDER BY f.rrf DESC, p.doi
         """
-        with self.paper_db.conn.cursor() as cur:
+        conn = self.paper_db.conn
+        # The explicit transaction scopes SET LOCAL to this query; the pipeline batches
+        # BEGIN + SET + SELECT into one network round trip (matters over a WAN hop).
+        with conn.pipeline(), conn.transaction(), conn.cursor() as cur:
+            cur.execute(f"SET LOCAL hnsw.ef_search = {HNSW_EF_SEARCH}")
             cur.execute(sql, params)
             rows = cur.fetchall()
 
@@ -145,8 +229,7 @@ class PgVectorSearch:
 
     def find_similar_to_paper(self, doi: str, top_k: int = 10) -> list[SearchResult]:
         paper = self.paper_db.get_paper(doi)
-        if not paper or not paper.abstract:
+        if not paper:
             return []
-        return [r for r in self.search(paper.abstract, top_k=top_k + 1) if r.paper.id != doi][
-            :top_k
-        ]
+        text = embedding_text(paper.title, paper.abstract)
+        return [r for r in self.search(text, top_k=top_k + 1) if r.paper.id != doi][:top_k]

@@ -229,6 +229,58 @@ class PaperDB:
         ]
         return [self._row_to_paper(row, columns) for row in result]
 
+    def lookup(
+        self,
+        title: str | None = None,
+        author: str | None = None,
+        year: int | None = None,
+        limit: int = 10,
+    ) -> list[Paper]:
+        """Find papers by approximate title and/or author surname; year only orders results."""
+        conditions: list[str] = []
+        order: list[str] = []
+        order_params: list[Any] = []
+        where_params: list[Any] = []
+        if year is not None:
+            order.append("coalesce(abs(a.year - ?) <= 1, false) DESC")
+            order_params.append(year)
+        if title:
+            # Contains covers a cited title without its subtitle; Jaro-Winkler covers typos.
+            score = (
+                "greatest(contains(lower(a.title), lower(?))::int, "
+                "jaro_winkler_similarity(lower(a.title), lower(?)))"
+            )
+            conditions.append(f"({score} >= 0.85)")
+            where_params += [title, title]
+            order.append(f"{score} DESC")
+            order_params += [title, title]
+        if author:
+            conditions.append("contains(lower(a.authors), lower(?))")
+            where_params.append(author)
+        if not conditions:
+            return []
+        order.append("a.year DESC NULLS LAST")
+        result = self.conn.execute(
+            f"""
+            SELECT
+                a.doi, a.title, a.authors, a.year,
+                a.journal_name, a.journal_issn, a.publisher,
+                s.abstract, s.ssrn_id, s.ssrn_url
+            FROM articles a
+            LEFT JOIN ssrn_pages s ON a.doi = s.doi
+            WHERE {" AND ".join(conditions)}
+            ORDER BY {", ".join(order)}
+            LIMIT ?
+            """,
+            where_params + order_params + [limit],
+        ).fetchall()
+        columns = [
+            "doi", "title", "authors", "year",
+            "journal_name", "journal_issn", "publisher",
+            "abstract", "ssrn_id", "ssrn_url"
+        ]
+        return [self._row_to_paper(row, columns) for row in result]
+
     def get_papers_with_abstracts(self, limit: int | None = None) -> list[Paper]:
         """Get all papers that have abstracts (for embedding)."""
         query = """
@@ -246,6 +298,31 @@ class PaperDB:
             query += f" LIMIT {limit}"
         
         result = self.conn.execute(query).fetchall()
+        columns = [
+            "doi", "title", "authors", "year",
+            "journal_name", "journal_issn", "publisher",
+            "abstract", "ssrn_id", "ssrn_url"
+        ]
+        return [self._row_to_paper(row, columns) for row in result]
+
+    def get_papers_for_loading(self, limit: int | None = None) -> list[Paper]:
+        """Get ALL papers in doi order; abstract is NULL unless SSRN has a real one (>50 chars)."""
+        query = """
+            SELECT
+                a.doi, a.title, a.authors, a.year,
+                a.journal_name, a.journal_issn, a.publisher,
+                CASE WHEN LENGTH(s.abstract) > 50 THEN s.abstract END AS abstract,
+                s.ssrn_id, s.ssrn_url
+            FROM articles a
+            LEFT JOIN ssrn_pages s ON a.doi = s.doi
+            ORDER BY a.doi
+        """
+        params: list[int] = []
+        if limit:
+            query += " LIMIT ?"
+            params.append(limit)
+
+        result = self.conn.execute(query, params).fetchall()
         columns = [
             "doi", "title", "authors", "year",
             "journal_name", "journal_issn", "publisher",
