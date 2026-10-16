@@ -62,6 +62,11 @@ class AzureOpenAIConfig(BaseModel):
         default_factory=lambda: os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
     )
     deployment: str | None = Field(default_factory=lambda: os.getenv("AZURE_OPENAI_DEPLOYMENT"))
+    # "chat" = Chat Completions (default). "responses" = the Responses API on the v1 endpoint,
+    # needed by models that refuse function tools with reasoning on Chat Completions (gpt-6.x).
+    api: Literal["chat", "responses"] = Field(
+        default_factory=lambda: os.getenv("AZURE_OPENAI_API", "chat")
+    )
 
 
 class ProviderConfig(BaseModel):

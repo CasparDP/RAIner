@@ -328,11 +328,18 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
                 raise ValueError("Azure OpenAI API key not set. Set AZURE_OPENAI_API_KEY in .env")
             if not az.endpoint:
                 raise ValueError("Azure OpenAI endpoint not set. Set AZURE_OPENAI_ENDPOINT in .env")
-            self.client = openai_sdk.AzureOpenAI(
-                api_key=az.api_key,
-                azure_endpoint=az.endpoint,
-                api_version=az.api_version,
-            )
+            if az.api == "responses":
+                # The v1 endpoint takes the plain OpenAI client and no api-version.
+                self.client = openai_sdk.OpenAI(
+                    api_key=az.api_key,
+                    base_url=az.endpoint.rstrip("/").removesuffix("/openai/v1") + "/openai/v1/",
+                )
+            else:
+                self.client = openai_sdk.AzureOpenAI(
+                    api_key=az.api_key,
+                    azure_endpoint=az.endpoint,
+                    api_version=az.api_version,
+                )
             # Azure addresses the model by deployment name.
             if az.deployment:
                 self.model = az.deployment
@@ -360,6 +367,7 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
             google_tool_wrappers=google_wrappers,
             temperature=self.config.provider.temperature,
             num_ctx=self.config.provider.ollama.num_ctx,
+            azure_api=self.config.provider.azure_openai.api,
         )
 
     def switch_provider(self, provider: str, model: str | None = None) -> None:
