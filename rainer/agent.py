@@ -332,7 +332,7 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
                 # The v1 endpoint takes the plain OpenAI client and no api-version.
                 self.client = openai_sdk.OpenAI(
                     api_key=az.api_key,
-                    base_url=az.endpoint.rstrip("/") + "/openai/v1/",
+                    base_url=az.endpoint.rstrip("/").removesuffix("/openai/v1") + "/openai/v1/",
                 )
             else:
                 self.client = openai_sdk.AzureOpenAI(

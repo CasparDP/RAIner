@@ -201,6 +201,7 @@ class AzureResponsesAdapter(ProviderAdapter, OpenAIToolsMixin):
     Newer reasoning models (gpt-6.x) refuse function tools on Chat Completions, so this
     adapter maps rainer's canonical chat history onto Responses input items and back.
     Nothing is stored server-side (`store=False`); the full history is sent each call.
+    No temperature is sent: these reasoning models reject any value but the default.
     """
 
     def __init__(self, client: openai_sdk.OpenAI, model: str, temperature: float = 0.1) -> None:
@@ -216,7 +217,6 @@ class AzureResponsesAdapter(ProviderAdapter, OpenAIToolsMixin):
             instructions=instructions or None,
             input=items,
             tools=self._to_response_tools(self.get_openai_tools(tools)),
-            temperature=self.temperature,
             store=False,
         )
         texts: list[str] = []

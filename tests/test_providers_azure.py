@@ -129,6 +129,7 @@ def test_responses_adapter_maps_history_and_tools():
     sent = fake.kwargs
     assert sent["instructions"] == "You review drafts."
     assert sent["store"] is False
+    assert "temperature" not in sent  # reasoning models reject anything but the default
     assert sent["tools"] == [
         {
             "type": "function",
