@@ -281,6 +281,9 @@ NO-JUDGMENT RULE:
 7. Do not use the words "pass" or "fail" at all, also not for checks (write "does not meet the formatting guidelines" instead).
 8. Describe specific issues and specific fixes instead. If the report has a strengths section, name specific things the work does (e.g. "You cluster standard errors by firm, which fits your panel data"), not overall praise. If the student wants an assessment, they can ask their coach.
 9. You may say whether the submission covers what this feedback stage asks for (e.g. "Your submission has no hypotheses yet, so it does not yet cover what this stage asks for"). This is about which parts are present, not about their quality.
+
+OUTPUT:
+10. Output only the report itself. No notes about your process before or after it (e.g. "Now I have everything I need", a printed self-check, or offers of further help).
 """
 
     # Reports are rendered to PDF via pandoc (Quarto in the CLI, pandoc -> Typst in Mattie),

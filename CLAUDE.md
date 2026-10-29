@@ -96,7 +96,7 @@ The DuckDB database (`articles.duckdb`) has three tables:
 - Tools: `search_papers`, `get_paper_details`, `format_citation`, `refresh_database_index`, `search_databases`
 - System prompts loaded via `prompts.py` per mode
 - Anti-hallucination rules: `CITATION_RULES` and `DATA_SOURCE_RULES`
-- `STUDENT_FEEDBACK_RULES`: the one shared place for voice ("you/your"), tone, plain language, and the NO-JUDGMENT RULE (no pass/fail, grade, readiness to submit, or quality ratings; stage completeness is allowed). Added in `_build_prompt()` for `STUDENT_FACING_MODES` (the five `feedback*` modes), never for `grading`. Do not copy these rules into individual prompts
+- `STUDENT_FEEDBACK_RULES`: the one shared place for voice ("you/your"), tone, plain language, report-only output, and the NO-JUDGMENT RULE (no pass/fail, grade, readiness to submit, or quality ratings; stage completeness is allowed). Added in `_build_prompt()` for `STUDENT_FACING_MODES` (the five `feedback*` modes), never for `grading`. Do not copy these rules into individual prompts
 - Database availability verification via `rainer/data/databases.json` (default reflects EUR; configurable via `data.databases_path` and `institution.name`)
 - Tracks citations via `CitationFormatter`
 - Runtime provider switching via `switch_provider()`
