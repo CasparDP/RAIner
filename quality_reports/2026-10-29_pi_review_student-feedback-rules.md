@@ -247,3 +247,40 @@ Start: 100
 
 **Final score: 81**
 
+
+## Batch d (follow-up commits: voice regex, report-only line)
+
+# Code Review
+**Overall:** SOUND
+
+## Summary
+This diff makes two targeted changes to a student-feedback LLM tool: (1) removes "the author" / "the author's" patterns from the third-person voice check (keeping only "the student" variants), because cited-paper phrases ("the author surname") were causing false positives and forcing full report rewrites; (2) adds a tenth rule to the shared `STUDENT_FEEDBACK_RULES` prompt block instructing the model to output only the report, no process notes. The test for the cited-author case is adequate and well-targeted. The main residual concern is whether dropping "the author" leaves a detectable gap for genuine third-person slips, but given the cost model (full rewrite per false hit), the tradeoff is defensible.
+
+## Category results
+
+| # | Category | OK/WARN/FAIL | findings |
+|---|----------|--------------|----------|
+| 1 | Correctness | OK | Regex change is coherent; pattern list still well-formed; test asserts empty violations for the exact false-positive scenario. |
+| 2 | Structure | OK | No structural changes; edits localized. |
+| 3 | Reproducibility | OK | No path/seed concerns. |
+| 4 | Error handling | OK | Voice check still raises/records violations for remaining patterns; no silent failure introduced. |
+| 5 | Comments | OK | New comment in `agent.py` explains the why (false hits, rewrite cost). Test comment explains the live-run provenance. |
+| 6 | Style | OK | Consistent with surrounding code; regex literals consistent. |
+| 7 | Performance | OK | No perf impact; `re.findall` count unchanged in order. |
+| 8 | Security | OK | No input handling or shell changes. |
+
+## Issues
+
+1. **MINOR — Coverage gap for genuine third-person slips.** With "the author"/"the author's" removed, a report that actually addresses the student in third person via "the author fails to ..." will no longer be caught and rewritten. The comment justifies the removal on false-positive grounds but doesn't acknowledge the false-negative tradeoff. If this check is the only safeguard against third-person drift in student-facing reports, the recall loss may be material.
+   - What would change my mind: evidence that (a) the prompt rules alone reliably prevent genuine third-person use, or (b) a narrower pattern (e.g. excluding matches followed by a surname / "et al" / a year) was considered and rejected with a reason. As written, the all-or-nothing removal is reasonable but un-argued.
+
+2. **MINOR — New OUTPUT rule is prompt-only; no programmatic check.** Rule 10 ("output only the report itself, no process notes") is enforced solely by the model obeying the system prompt. There's no corresponding regex/post-processing guard akin to the voice check. If process-note leakage is frequent enough to add a rule, a lint check (e.g. for leading "Now I have..." / trailing offers of help) would make the guarantee testable. Not blocking; flagged as a consistency observation given the codebase clearly uses programmatic checks elsewhere.
+
+3. **MINOR — Test is narrow.** `test_voice_check_ignores_cited_authors` covers one phrasing. Adjacent false-positive forms ("the author of this work", "the author argues", followed by no surname) are untested, as is the negative case that "the student" patterns still fire. A second assertion (`assert _check("feedback", "The student should ...") != []`) would lock in that the remaining guard is alive and prevent a future over-broad fix.
+   - What would change my mind: the existing parametrized `test_voice_check_covers_student_facing_modes_only` already asserts "the student" fires — if it does, this point is moot. Worth confirming it covers "the student" and not only "the author".
+
+## Score
+Start 100.
+- −3: issue 1, un-argued recall tradeoff on a core guard.
+- −2: issue 3, thin test coverage on a behavior change.
+Final: **95**
