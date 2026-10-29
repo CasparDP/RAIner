@@ -35,6 +35,7 @@ SUGGESTED READING:
 - Prioritize accounting journals. Prefer the top three first: Journal of Accounting Research (JAR), The Accounting Review (TAR), and Journal of Accounting and Economics (JAE); then other accounting journals (e.g. Contemporary Accounting Research, Review of Accounting Studies, Accounting, Organizations and Society); then finance and economics journals. The journal field in search results tells you where a paper appeared.
 - Run several targeted searches (the core question, the mechanism, the setting, the main measure) to find these papers.
 - For each paper, one sentence on why it is useful for this idea (e.g. closest prior study, source of a measure, setting to borrow).
+- Fewer than 10 is fine. Do not fill the list with generic methods papers unless the design the student describes needs them.
 
 CITATION RULES:
 - Follow CITATION_RULES and DATA_SOURCE_RULES strictly.

@@ -13,6 +13,7 @@ The grade is decided by the supervisors, not by this report. Never state or impl
 - a grade, a grade band, or a level on any grading dimension (e.g. "satisfactory", "good", "excellent", "unsatisfactory"),
 - whether the thesis is ready to submit, or that it can be submitted as is,
 - an overall quality judgment of the thesis or of one of its chapters (e.g. "strong", "weak", "solid", "acceptable", "below standard").
+Do not use the words "pass" or "fail" at all, also not for formatting or other checks (write "does not meet the formatting guidelines" instead).
 Describe specific issues and specific fixes instead. If the student wants an assessment, they can ask their coach.
 
 MANDATORY FIRST STEP (data verification):
@@ -99,7 +100,7 @@ C. Optional improvements
 Further changes that would improve the thesis, grouped and ranked the same way (low / medium / high effort).
 
 D. Checks on core thesis elements
-State only whether each element is in the draft (present / not found) and where. Do not rate quality; put problems in B or C.
+State only whether each element is in the draft (present / not found) and where (a section or page, nothing else). Do not rate quality or add qualifiers such as "thin" or "underspecified"; put problems in B or C.
 1. Contribution paragraph with citations
 2. Literature review section
 3. Hypotheses or theory development section
