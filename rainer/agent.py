@@ -1257,16 +1257,15 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
             ],
         ],
         "feedback_final": [
-            [  # E (optional improvements) is conditional in the prompt, so not required
-                "A. Bottom-line verdict",
-                "B. Grading-matrix triage table",
-                "C. My understanding of the thesis",
-                "D. Minimum changes required to pass",
-                "F. Required checks on core thesis elements",
-                "G. Data and feasibility audit",
-                "H. Citation audit",
-                "I. Submission checklist",
-                "J. Clarifying questions",
+            [
+                "A. My understanding of the thesis",
+                "B. Recommended changes",
+                "C. Optional improvements",
+                "D. Checks on core thesis elements",
+                "E. Data and feasibility audit",
+                "F. Citation audit",
+                "G. Submission checklist",
+                "H. Clarifying questions",
             ],
         ],
         "grading": [

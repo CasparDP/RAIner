@@ -72,3 +72,24 @@ def test_every_report_mode_gets_math_rules():
         prompt = ResearchAgent(mode=mode, config=Config())._build_prompt()
         assert ResearchAgent.MATH_RULES in prompt
         assert "rendered to PDF via Quarto" not in prompt
+
+
+def test_required_headings_appear_in_their_prompts():
+    """The heading check and the prompt must change together, or every run costs a follow-up."""
+    from rainer.agent import ResearchAgent
+    from rainer.prompts import resolve_prompt
+
+    for mode, layouts in ResearchAgent._REQUIRED_HEADING_LAYOUTS.items():
+        prompt = resolve_prompt(mode)
+        for layout in layouts:
+            for heading in layout:
+                assert heading in prompt, f"{mode}: '{heading}' not in prompt"
+
+
+def test_final_feedback_gives_no_verdict():
+    from rainer.prompts import resolve_prompt
+
+    prompt = resolve_prompt("feedback_final")
+    for phrase in ("PASS LIKELY", "BORDERLINE", "Bottom-line verdict", "Grading-matrix", "to pass"):
+        assert phrase not in prompt
+    assert "NO-JUDGMENT RULE" in prompt
