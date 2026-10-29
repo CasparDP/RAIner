@@ -44,6 +44,12 @@ def test_voice_check_covers_student_facing_modes_only():
         assert any("Voice violation" in issue for issue in _check(mode, text)), mode
 
 
+def test_voice_check_ignores_cited_authors():
+    # Seen in live runs: phrases about cited papers triggered a needless full rewrite.
+    text = "I searched the author surname; check the author names of Griffin et al. (2021)."
+    assert _check("feedback", text) == []
+
+
 @pytest.mark.parametrize("api", ["chat", "responses"])
 def test_azure_client_retries_rate_limits(api):
     cfg = Config()

@@ -1395,10 +1395,9 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
         # Check for third-person voice violations (outside of the labeling system).
         # Student-facing modes require second person; grading is written for the supervisor.
         if self.mode in self.STUDENT_FACING_MODES:
-            voice_patterns = [
-                r"\bthe student\b", r"\bthe author\b",
-                r"\bthe student's\b", r"\bthe author's\b",
-            ]
+            # No "the author": reports use it for cited papers ("the author surname"), and each
+            # false hit costs a full rewrite of the report.
+            voice_patterns = [r"\bthe student\b", r"\bthe student's\b"]
             for pattern in voice_patterns:
                 matches = re.findall(pattern, content, re.IGNORECASE)
                 if matches:
