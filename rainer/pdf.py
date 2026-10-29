@@ -80,9 +80,18 @@ def parse_pdf(filepath: Path) -> tuple[str | None, dict]:
         return None, {}
 
     try:
-        from docling.document_converter import DocumentConverter
+        from docling.datamodel.base_models import InputFormat
+        from docling.datamodel.pipeline_options import PdfPipelineOptions
+        from docling.document_converter import DocumentConverter, PdfFormatOption
 
-        converter = DocumentConverter()
+        # Theses are born-digital: OCR adds memory and time but no text.
+        converter = DocumentConverter(
+            format_options={
+                InputFormat.PDF: PdfFormatOption(
+                    pipeline_options=PdfPipelineOptions(do_ocr=False)
+                )
+            }
+        )
         result = converter.convert(str(filepath))
         content = result.document.export_to_markdown()
 

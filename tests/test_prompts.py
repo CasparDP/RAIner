@@ -61,3 +61,14 @@ def test_every_mode_forbids_time_estimates():
         prompt = ResearchAgent(mode=mode, config=Config())._build_prompt()
         assert ResearchAgent.TIME_ESTIMATE_RULES in prompt
         assert "expected effort" not in prompt
+
+
+def test_every_report_mode_gets_math_rules():
+    """Reports are rendered through pandoc, so every report mode carries the math rules."""
+    from rainer.agent import ResearchAgent
+    from rainer.config import Config
+
+    for mode in ("feedback", "feedback_hyp_rd", "feedback_results", "feedback_final", "grading"):
+        prompt = ResearchAgent(mode=mode, config=Config())._build_prompt()
+        assert ResearchAgent.MATH_RULES in prompt
+        assert "rendered to PDF via Quarto" not in prompt
