@@ -44,6 +44,7 @@ RAiner/
     ├── data/
     │   └── databases.json  # institution database access list (default: EUR; via data.databases_path)
     └── prompts/            # Mode-specific system prompt templates (Markdown)
+        ├── feedback_idea.md      # earliest stage: short idea, 5-10 next steps
         ├── feedback.md
         ├── feedback_hyp_rd.md
         ├── feedback_results.md
@@ -107,7 +108,7 @@ The DuckDB database (`articles.duckdb`) has three tables:
 
 ### `prompts.py` - Prompt Loading
 - Loads mode-specific system prompts from `rainer/prompts/*.md`
-- Valid modes: `feedback`, `feedback_hyp_rd`, `feedback_results`, `feedback_final`, `grading`, `writing`, `review`, `search`, `exam-review`
+- Valid modes: `feedback_idea`, `feedback`, `feedback_hyp_rd`, `feedback_results`, `feedback_final`, `grading`, `writing`, `review`, `search`, `exam-review`
 - Supports config override for prompt directory via `output.prompt_dir`
 
 ### `mcp_server.py` - MCP Server
@@ -283,6 +284,7 @@ Update `databases.json` when database access changes. For EUR, check [EDSC news]
 
 | Mode | Citation Style | Use Case |
 |------|---------------|----------|
+| feedback_idea | inline | Student-facing feedback on an early research idea (1-3 pages): 5-10 next steps, reading list, light data check (select via `/mode feedback_idea`) |
 | feedback | inline | Student draft review with data feasibility audit (used by `/feedback` workflow) |
 | feedback_hyp_rd | inline | Hypothesis & research design focused feedback (select via `/mode feedback_hyp_rd`) |
 | feedback_results | inline | Results-design consistency feedback for drafts with empirical output (select via `/mode feedback_results`) |
@@ -292,6 +294,23 @@ Update `databases.json` when database access changes. For EUR, check [EDSC news]
 | review | inline | Reviewer report writing (used by `/review` workflow) |
 | search | bibtex | Literature discovery (default base mode when starting RAiner) |
 | exam-review | inline | Exam/quiz quality review (used by `/exam-review`) |
+
+### Feedback Idea Mode Output Format
+
+The `feedback_idea` mode handles the earliest submission (typically one page, at most three) and aims the student at a draft ready for the general `feedback` stage. No judgment of the idea's quality (coach's call).
+
+```
+A. My understanding of your idea (STATED / INFERRED / NOT FOUND)
+B. Your next steps (5-10 numbered items, ranked by importance)
+C. Suggested reading (up to 10 tool-backed papers; accounting journals first, JAR/TAR/JAE on top)
+D. Data check (light: 1-3 datasets, VERIFIED / UNVERIFIED / ASSUMED)
+```
+
+`_ITEM_CAPS` in `agent.py` counts the numbered items in B and C; over 10 triggers one follow-up asking for a merged, complete report (the report is never truncated).
+
+### Feedback Final Mode Output Format
+
+The `feedback_final` mode gives no verdict, grade, grading-matrix levels, or quality ratings (NO-JUDGMENT RULE): A. understanding; B. Recommended changes (max 7, on the RQ -> design -> results -> conclusions chain); C. Optional improvements (everything else); both grouped by low/medium/high effort. D-H: factual element checks, data audit, citation audit, submission checklist, clarifying questions.
 
 ### Feedback Mode Output Format
 

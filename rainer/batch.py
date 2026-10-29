@@ -65,6 +65,7 @@ def process_single_file(
 
         # Build prompt
         base_prompt = {
+            "feedback_idea": "Run a structured feedback report on the student's early research idea.",
             "feedback": "Run a structured student-facing feedback report on the loaded draft.",
             "feedback_hyp_rd": "Run a structured hypothesis and research design feedback report on the loaded draft.",
             "feedback_results": "Run a structured results and design consistency feedback report on the loaded draft.",

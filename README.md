@@ -220,6 +220,8 @@ After loading a draft with `/load`, run a structured student-facing feedback rep
 
 The agent automatically verifies whether required databases (WRDS, Compustat, Bloomberg, etc.) are available at EUR using the built-in EUR tools, and produces a structured report (executive summary, feasibility audit, revision checklist, etc.).
 
+For the earliest stage (a one- to three-page research idea), switch to `feedback_idea`: a short report with 5 to 10 ranked next steps, up to 10 suggested papers (accounting journals first), and a light data check.
+
 For the last full-draft check before MSc thesis submission, switch to `feedback_final` first. This mode gives no verdict or grade (that is the supervisors' call): it lists at most 7 recommended changes on the thesis's core argument, puts everything else under optional improvements, groups both by effort (low / medium / high), and keeps the data checks and citation audit.
 
 ```

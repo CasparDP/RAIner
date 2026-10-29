@@ -97,6 +97,7 @@ def print_help() -> None:
 ## Tips
 
 - Use `/load` for drafts, then `/review` or `/feedback` as needed
+- Use `/mode feedback_idea` before `/feedback` for a short report on an early research idea
 - Use `/mode feedback_final` before `/feedback` for last pre-submission thesis feedback
 - Use `/loadpaper` for reference PDFs in writing workflows
 - Supports PDF, DOCX, XLSX, TXT, MD (PDF/DOCX/XLSX require: `poetry install --with pdf`)
@@ -254,7 +255,7 @@ def main() -> None:
     batch_parser = subparsers.add_parser("batch", help="Batch process files non-interactively")
     batch_parser.add_argument(
         "workflow",
-        choices=["feedback", "feedback_hyp_rd", "feedback_results", "feedback_final", "grading", "review"],
+        choices=["feedback_idea", "feedback", "feedback_hyp_rd", "feedback_results", "feedback_final", "grading", "review"],
         help="Workflow to run on each file",
     )
     batch_parser.add_argument("files", nargs="+", help="Files to process")
@@ -279,7 +280,7 @@ def main() -> None:
     parser.add_argument(
         "-m",
         "--mode",
-        choices=["feedback", "feedback_hyp_rd", "feedback_results", "feedback_final", "grading", "writing", "review", "search", "exam-review"],
+        choices=["feedback_idea", "feedback", "feedback_hyp_rd", "feedback_results", "feedback_final", "grading", "writing", "review", "search", "exam-review"],
         help="Start in specific mode",
     )
     parser.add_argument(
@@ -408,7 +409,7 @@ def main() -> None:
                     print_help()
 
                 elif cmd == "/mode":
-                    if cmd_arg in ("feedback", "feedback_hyp_rd", "feedback_results", "feedback_final", "grading", "writing", "review", "search"):
+                    if cmd_arg in ("feedback_idea", "feedback", "feedback_hyp_rd", "feedback_results", "feedback_final", "grading", "writing", "review", "search"):
                         mode = cmd_arg  # type: ignore
                         memory = ConversationMemory.new(mode=mode)
                         agent = ResearchAgent(mode=mode, memory=memory)  # type: ignore
@@ -422,7 +423,7 @@ def main() -> None:
                         )
                     else:
                         console.print(
-                            "[yellow]Usage: /mode <feedback|feedback_hyp_rd|feedback_results|feedback_final|grading|writing|review|search>[/yellow]"
+                            "[yellow]Usage: /mode <feedback_idea|feedback|feedback_hyp_rd|feedback_results|feedback_final|grading|writing|review|search>[/yellow]"
                         )
 
                 elif cmd == "/sessions":
@@ -558,7 +559,7 @@ def main() -> None:
                         source_memory = memory
                         feedback_mode = (
                             mode
-                            if mode in ("feedback", "feedback_hyp_rd", "feedback_results", "feedback_final")
+                            if mode in ("feedback_idea", "feedback", "feedback_hyp_rd", "feedback_results", "feedback_final")
                             else "feedback"
                         )
                         memory = ConversationMemory.new(mode=feedback_mode)
@@ -581,7 +582,9 @@ def main() -> None:
                         console.print(
                             f"[green]Started feedback session {memory.session_id}[/green]"
                         )
-                        if feedback_mode == "feedback_hyp_rd":
+                        if feedback_mode == "feedback_idea":
+                            base_feedback = "Run a structured feedback report on the student's early research idea."
+                        elif feedback_mode == "feedback_hyp_rd":
                             base_feedback = "Run a structured hypothesis and research design feedback report on the loaded draft."
                         elif feedback_mode == "feedback_results":
                             base_feedback = "Run a structured results and design consistency feedback report on the loaded draft."
