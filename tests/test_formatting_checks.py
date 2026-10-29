@@ -39,6 +39,7 @@ def test_accepts_clean_math_and_dollar_amounts(content):
 def test_voice_check_covers_student_facing_modes_only():
     text = "The student uses $\\beta$."
     assert _check("grading", text) == []
+    assert _check("review", text) == []
     for mode in ResearchAgent.STUDENT_FACING_MODES:
         assert any("Voice violation" in issue for issue in _check(mode, text)), mode
 

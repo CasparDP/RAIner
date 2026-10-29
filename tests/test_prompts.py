@@ -105,7 +105,10 @@ def test_student_feedback_rules_reach_student_facing_modes_only():
     for mode in ResearchAgent.STUDENT_FACING_MODES:
         prompt = ResearchAgent(mode=mode, config=Config())._build_prompt()
         assert prompt.count(ResearchAgent.STUDENT_FEEDBACK_RULES) == 1, mode
-        assert "verdict" not in resolve_prompt(mode).lower(), mode
+        assert "verdict" not in prompt.lower(), mode
+        # The rules live only in the shared block, not as copies in the prompt files.
+        for heading in ("VOICE RULE", "NO-JUDGMENT RULE"):
+            assert heading not in resolve_prompt(mode), (mode, heading)
     for mode in ("grading", "review"):
         prompt = ResearchAgent(mode=mode, config=Config())._build_prompt()
         assert ResearchAgent.STUDENT_FEEDBACK_RULES not in prompt, mode
