@@ -284,3 +284,48 @@ Start 100.
 - −3: issue 1, un-argued recall tradeoff on a core guard.
 - −2: issue 3, thin test coverage on a behavior change.
 Final: **95**
+
+## Batch e (v0.4.1: no tool names in student reports)
+
+# Code Review
+**Overall:** MINOR ISSUES
+
+## Summary
+The diff adds a prompt rule and a post-hoc formatting check to prevent internal tool names (e.g. `lookup_paper`) from leaking into student-facing reports. The approach is sound: exact identifier matching against the known `TOOLS` list, scoped to `STUDENT_FACING_MODES`, bundled with other formatting issues for a single follow-up. The main risk is the naive substring `in` check, which could false-positive on short tool names or false-negative on case-variant or space-separated renditions. Tests cover the core happy/sad paths but don't fully verify mode scoping.
+
+## Category results
+
+| # | Category | OK/WARN/FAIL | Findings |
+|---|----------|-------------|----------|
+| 1 | Correctness | WARN | Substring `in` check (L1453) is fragile for short tool names; case-sensitive only |
+| 2 | Structure | OK | Check placed alongside other formatting checks; follows existing pattern |
+| 3 | Reproducibility | OK | Version bump, no path/seed issues |
+| 4 | Error handling | OK | Assumes `self.TOOLS` structure exists; consistent with existing code |
+| 5 | Comments | OK | Comment at L1450 explains rationale ("Exact identifiers only, so this never fires on ordinary prose") |
+| 6 | Style | OK | Consistent with surrounding code |
+| 7 | Performance | OK | Linear scan over tool names per report; negligible |
+| 8 | Security | OK | No secrets, no shell, no input injection surface |
+
+## Issues
+
+1. **MINOR — Substring match risks false positives on short tool names (L1453).**
+   `leaked = [name for name in tool_names if name in content]` uses Python `in` (substring, not word-boundary). Current tool names (`search_papers`, `lookup_paper`, `search_databases`) are long enough that this is safe today. But if a future tool is named `web`, `search`, or `cite`, ordinary prose like "I searched" or "website" would trigger a false positive. The comment claims "this never fires on ordinary prose" — true only for the current tool set.
+   **What would change my mind:** Confirm the full `TOOLS` list contains no short or common-word identifiers, or switch to a word-boundary regex (`re.search(r'\b' + re.escape(name) + r'\b', content)`).
+
+2. **MINOR — Case-sensitive only; misses simple evasion by the LLM (L1453).**
+   If the model writes "LookUp_Paper" or "LOOKUP_PAPER", the check won't catch it. Low practical risk since tool names are conventionally lowercase, but the prompt rule is the real safeguard and this is just a backstop. Acceptable trade-off, but worth a comment noting the deliberate choice.
+
+3. **MINOR — Test doesn't verify `STUDENT_FACING_MODES` membership (test L79-82).**
+   The loop `for mode in ResearchAgent.STUDENT_FACING_MODES` tests that each member mode flags tool names, but nothing tests that "feedback" is actually *in* that set. If someone accidentally removed "feedback" from `STUDENT_FACING_MODES`, the final assert (`_check("feedback", ...) == []`) would still pass — it would pass trivially because the check never ran. The test name says "in student reports only" but doesn't lock down the mode set.
+   **What would change my mind:** Add `assert "feedback" in ResearchAgent.STUDENT_FACING_MODES` or test that a non-student mode (e.g. "grading") does *not* flag the same text — which the test does for "grading" but not for the boundary between feedback and grading.
+
+4. **MINOR — Normal-prose false-positive test covers only one mode and one sentence (test L82).**
+   `assert _check("feedback", "I searched the paper database and the library's list.") == []` is good but thin. Words like "searched", "paper", "database" are exactly the substrings that could collide with tool names. Testing only "feedback" (and asserting the *entire* issue list is empty, not just the tool-names issue) conflates this check with all other formatting checks. A targeted assert (`not any(i.startswith("Tool names") for i in _check("feedback", text))`) would be more precise and would also work if other formatting rules fire on the same text.
+
+## Score
+Start: 100
+- Substring fragility (issue 1): −3
+- Test mode-scoping gap (issue 3): −2
+- Thin false-positive test (issue 4): −2
+
+**Final score: 93**
