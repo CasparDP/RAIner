@@ -80,11 +80,24 @@ def parse_pdf(filepath: Path) -> tuple[str | None, dict]:
         return None, {}
 
     try:
-        from docling.document_converter import DocumentConverter
+        from docling.datamodel.base_models import InputFormat
+        from docling.datamodel.pipeline_options import PdfPipelineOptions
+        from docling.document_converter import DocumentConverter, PdfFormatOption
 
-        converter = DocumentConverter()
-        result = converter.convert(str(filepath))
-        content = result.document.export_to_markdown()
+        # Theses are born-digital: OCR adds memory and time but no text. A scanned PDF has no
+        # text layer, so it comes back empty and is parsed again with OCR.
+        for do_ocr in (False, True):
+            converter = DocumentConverter(
+                format_options={
+                    InputFormat.PDF: PdfFormatOption(
+                        pipeline_options=PdfPipelineOptions(do_ocr=do_ocr)
+                    )
+                }
+            )
+            result = converter.convert(str(filepath))
+            content = result.document.export_to_markdown()
+            if content.strip():
+                break
 
         # Extract metadata
         metadata = _extract_metadata_from_docling(result)

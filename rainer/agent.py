@@ -24,6 +24,10 @@ from .prompts import resolve_prompt
 from .providers import create_provider_adapter
 from .search import PaperSearch
 
+# SDK retries per LLM call (the SDK default is 2). A rate-limit (429) error otherwise kills a
+# long feedback run; the SDK waits out the server's retry-after (up to 60 s) between tries.
+LLM_MAX_RETRIES = 8
+
 
 class ToolResult(BaseModel):
     """Result from a tool execution."""
@@ -244,6 +248,16 @@ TIME ESTIMATE RULES - YOU MUST FOLLOW THESE:
 3. If the draft contains its own timeline, do not judge whether its durations are realistic
 """
 
+    # Reports are rendered to PDF via pandoc (Quarto in the CLI, pandoc -> Typst in Mattie),
+    # whose math parser is strict about delimiters.
+    MATH_RULES = r"""
+MATH FORMATTING RULES - YOU MUST FOLLOW THESE (the report is rendered to PDF via pandoc):
+1. Write all math in LaTeX, never Unicode math symbols: `$\beta$` not β, `$R^2$` not R², `$\hat{\beta}_1$` not β̂₁, `$p < 0.01$` not p < 0.01, `$N = 500$` not N = 500. This covers Greek letters, subscripts, superscripts, operators, equations, test statistics, and p-values.
+2. Inline math uses `$...$`; display equations use `$$...$$` on their own lines, e.g. `$$Y_{it} = \alpha + \beta X_{it} + \epsilon_{it}$$`. NEVER use `\( \)` or `\[ \]`.
+3. No space directly inside inline dollar signs: write `$\beta$`, never `$ \beta $` (pandoc does not parse the spaced form as math).
+4. Wrap multi-letter variable names in `\text{}`: `$\text{ROA}_{it}$`, `$\text{Leverage}_{it}$`, not `$ROA_{it}$` (which renders as R times O times A).
+"""
+
     # Added to the system prompt whenever a draft is loaded. The draft itself is sent as a
     # separate user message inside <student_draft> tags, never as part of the system prompt.
     DRAFT_AS_DATA_RULES = """
@@ -349,7 +363,7 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
             api_key = self.config.provider.openai.api_key
             if not api_key:
                 raise ValueError("OpenAI API key not set. Set OPENAI_API_KEY in .env")
-            self.client = openai_sdk.OpenAI(api_key=api_key)
+            self.client = openai_sdk.OpenAI(api_key=api_key, max_retries=LLM_MAX_RETRIES)
 
         elif self.provider_type == "openrouter":
             api_key = self.config.provider.openrouter.api_key
@@ -358,6 +372,7 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
             self.client = openai_sdk.OpenAI(
                 api_key=api_key,
                 base_url=self.config.provider.openrouter.base_url,
+                max_retries=LLM_MAX_RETRIES,
             )
 
         elif self.provider_type == "azure-openai":
@@ -371,12 +386,14 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
                 self.client = openai_sdk.OpenAI(
                     api_key=az.api_key,
                     base_url=az.endpoint.rstrip("/").removesuffix("/openai/v1") + "/openai/v1/",
+                    max_retries=LLM_MAX_RETRIES,
                 )
             else:
                 self.client = openai_sdk.AzureOpenAI(
                     api_key=az.api_key,
                     azure_endpoint=az.endpoint,
                     api_version=az.api_version,
+                    max_retries=LLM_MAX_RETRIES,
                 )
             # Azure addresses the model by deployment name.
             if az.deployment:
@@ -386,7 +403,7 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
             api_key = self.config.provider.anthropic.api_key
             if not api_key:
                 raise ValueError("Anthropic API key not set. Set ANTHROPIC_API_KEY in .env")
-            self.client = anthropic_sdk.Anthropic(api_key=api_key)
+            self.client = anthropic_sdk.Anthropic(api_key=api_key, max_retries=LLM_MAX_RETRIES)
 
         elif self.provider_type == "google":
             api_key = self.config.provider.google.api_key
@@ -852,7 +869,15 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
             institution=self.config.institution.name
         )
         return (
-            base + "\n" + self.CITATION_RULES + "\n" + data_rules + "\n" + self.TIME_ESTIMATE_RULES
+            base
+            + "\n"
+            + self.CITATION_RULES
+            + "\n"
+            + data_rules
+            + "\n"
+            + self.TIME_ESTIMATE_RULES
+            + "\n"
+            + self.MATH_RULES
         )
 
     def _build_draft_context(self) -> str:
@@ -1300,25 +1325,29 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
 
     def _check_formatting_issues(self, content: str) -> list[str]:
         """Detect voice and math formatting violations in feedback output."""
-        if self.mode not in ("feedback_hyp_rd", "feedback", "feedback_final"):
+        if self.mode not in (
+            "feedback_hyp_rd", "feedback", "feedback_final", "feedback_results", "grading"
+        ):
             return []
 
         issues: list[str] = []
         import re
 
-        # Check for third-person voice violations (outside of the labeling system)
-        voice_patterns = [
-            r"\bthe student\b", r"\bthe author\b",
-            r"\bthe student's\b", r"\bthe author's\b",
-        ]
-        for pattern in voice_patterns:
-            matches = re.findall(pattern, content, re.IGNORECASE)
-            if matches:
-                issues.append(
-                    f"Voice violation: found {len(matches)}x '{matches[0]}'. "
-                    "Rewrite these to use 'you/your' (second person)."
-                )
-                break
+        # Check for third-person voice violations (outside of the labeling system).
+        # Only modes whose prompts require second person; grading is written for the supervisor.
+        if self.mode in ("feedback_hyp_rd", "feedback", "feedback_final"):
+            voice_patterns = [
+                r"\bthe student\b", r"\bthe author\b",
+                r"\bthe student's\b", r"\bthe author's\b",
+            ]
+            for pattern in voice_patterns:
+                matches = re.findall(pattern, content, re.IGNORECASE)
+                if matches:
+                    issues.append(
+                        f"Voice violation: found {len(matches)}x '{matches[0]}'. "
+                        "Rewrite these to use 'you/your' (second person)."
+                    )
+                    break
 
         # Check for bare Unicode math outside of LaTeX delimiters
         # Strip LaTeX-delimited regions first to avoid false positives
@@ -1331,6 +1360,27 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
             issues.append(
                 f"Math formatting violation: found bare Unicode math symbols ({examples}) "
                 "outside of LaTeX delimiters. Wrap ALL math in $...$ or $$...$$."
+            )
+
+        # Delimiters pandoc does not parse as math
+        if re.search(r"\\[(\[]", content):
+            issues.append(
+                "Math formatting violation: found \\( \\) or \\[ \\] delimiters. "
+                "Use $...$ for inline math and $$...$$ for display math."
+            )
+
+        # Spaces just inside inline $...$ ("$ \beta $"): pandoc reads them as plain text. Only
+        # spans that look like math are flagged, so dollar amounts in prose do not trigger it.
+        no_display = re.sub(r"\$\$.*?\$\$", "", content, flags=re.DOTALL)
+        padded = [
+            m.group(0)
+            for m in re.finditer(r"(?<![\\$])\$([^$\n]+?)\$(?![$\d])", no_display)
+            if m.group(1) != m.group(1).strip() and re.search(r"[\\^_=<>]", m.group(1))
+        ]
+        if padded:
+            issues.append(
+                f"Math formatting violation: found {len(padded)}x inline math with spaces inside "
+                f"the dollar signs (e.g. '{padded[0]}'). Write $\\beta$, not $ \\beta $."
             )
 
         return issues
