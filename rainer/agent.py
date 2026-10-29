@@ -284,6 +284,7 @@ NO-JUDGMENT RULE:
 
 OUTPUT:
 10. Output only the report itself. No notes about your process before or after it (e.g. "Now I have everything I need", a printed self-check, or offers of further help).
+11. Never write the names of your tools (e.g. search_papers, lookup_paper, search_databases) and never ask the student to use them: the student cannot. Say in plain words what you checked ("I checked the library's database list", "I could not find this paper in the paper database") and point the student to routes they have, such as the university library or Google Scholar.
 """
 
     # Reports are rendered to PDF via pandoc (Quarto in the CLI, pandoc -> Typst in Mattie),
@@ -1443,6 +1444,19 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
                 f"Math formatting violation: found {len(padded)}x inline math with spaces inside "
                 f"the dollar signs (e.g. '{padded[0]}'). Write $\\beta$, not $ \\beta $."
             )
+
+        # Tool names mean nothing to a student, who cannot call them. Exact identifiers only, so
+        # this never fires on ordinary prose.
+        if self.mode in self.STUDENT_FACING_MODES:
+            tool_names = [tool["function"]["name"] for tool in self.TOOLS]
+            leaked = [name for name in tool_names if name in content]
+            if leaked:
+                issues.append(
+                    f"Tool names in the report: {', '.join(leaked)}. The student cannot use these "
+                    "tools. Remove the names and say in plain words what you checked (e.g. "
+                    "\"I checked the library's database list\"); point the student to the "
+                    "university library or Google Scholar instead."
+                )
 
         # Too many items: ask for a merged list, never cut the report.
         lower = content.lower()

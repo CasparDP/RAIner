@@ -69,3 +69,13 @@ def test_other_clients_retry_rate_limits(provider):
     getattr(cfg.provider, provider).api_key = "test-key"
     agent = ResearchAgent(mode="search", config=cfg)
     assert agent.client.max_retries == LLM_MAX_RETRIES
+
+
+def test_tool_names_flagged_in_student_reports_only():
+    # Seen in live runs: "Use `lookup_paper` or your library search to confirm the citation."
+    text = "Use `lookup_paper` to confirm it; Orbis is VERIFIED via search_databases."
+    for mode in ResearchAgent.STUDENT_FACING_MODES:
+        issues = [i for i in _check(mode, text) if i.startswith("Tool names")]
+        assert issues and "lookup_paper" in issues[0] and "search_databases" in issues[0], mode
+    assert not any(i.startswith("Tool names") for i in _check("grading", text))
+    assert _check("feedback", "I searched the paper database and the library's list.") == []
