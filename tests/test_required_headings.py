@@ -103,3 +103,40 @@ def test_complete_report_in_follow_up_is_not_duplicated(make_agent):
     agent, _ = make_agent("feedback_results", replies=[incomplete, RESULTS_FULL])
 
     assert agent.chat("Run the report.") == RESULTS_FULL
+
+
+def _idea_report(n_steps, n_papers=3):
+    steps = "\n".join(
+        f"**{i}.** Step {i}\n   1. sub-point\n   2) sub-point\n1.5 million firms" for i in range(1, n_steps + 1)
+    )
+    papers = "\n".join(f"{i}. Paper {i} (JAR)" for i in range(1, n_papers + 1))
+    return (
+        "## A. My understanding of your idea\n- Topic: STATED\n\n"
+        f"## B. Your next steps\n{steps}\n\n"
+        f"## C. Suggested reading\n{papers}\n\n"
+        "## D. Data check\n- Compustat: VERIFIED\n"
+    )
+
+
+def test_idea_item_cap(make_agent):
+    agent, _ = make_agent("feedback_idea")
+    assert agent._check_formatting_issues(_idea_report(10, 10)) == []
+    issues = agent._check_formatting_issues(_idea_report(11))
+    assert len(issues) == 1 and "B. Your next steps" in issues[0] and "11" in issues[0]
+    issues = agent._check_formatting_issues(_idea_report(5, 12))
+    assert len(issues) == 1 and "C. Suggested reading" in issues[0]
+
+
+def test_idea_cap_asks_for_a_merged_complete_report(make_agent):
+    """Over the cap: one follow-up for a complete report; the reply is used whole, not cut."""
+    too_long, merged = _idea_report(12), _idea_report(9)
+    agent, adapter = make_agent("feedback_idea", replies=[too_long, merged])
+    assert agent.chat("Give feedback on my idea.") == merged
+    follow_up = adapter.seen_messages[1][-1]["content"]
+    assert "12 numbered items" in follow_up and "COMPLETE report" in follow_up
+
+
+def test_idea_cap_still_exceeded_returns_report_uncut(make_agent):
+    too_long = _idea_report(12)
+    agent, _ = make_agent("feedback_idea", replies=[too_long, too_long])
+    assert agent.chat("Give feedback on my idea.") == too_long

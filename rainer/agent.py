@@ -272,6 +272,7 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
     def __init__(
         self,
         mode: Literal[
+            "feedback_idea",
             "feedback",
             "feedback_hyp_rd",
             "feedback_results",
@@ -675,6 +676,7 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
                         "title": r.paper.title,
                         "authors": r.paper.authors,
                         "year": r.paper.year,
+                        "journal": r.paper.journal_name,
                         "relevance_score": round(r.score, 3),
                         "abstract_snippet": (
                             r.paper.abstract[:300] + "..."
@@ -1090,7 +1092,7 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
 
     def _ensure_feedback_data_verification(self) -> None:
         """Auto-run database verification in feedback mode to keep feasibility checks consistent."""
-        if self.mode not in ("feedback", "feedback_final", "grading"):
+        if self.mode not in ("feedback_idea", "feedback", "feedback_final", "grading"):
             return
 
         if not self.memory.get_context("draft_loaded"):
@@ -1126,7 +1128,7 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
 
     def _build_data_verification_context(self) -> str:
         """Build context block with database verification results and pre-searched literature."""
-        if self.mode not in ("feedback", "feedback_final", "grading"):
+        if self.mode not in ("feedback_idea", "feedback", "feedback_final", "grading"):
             return ""
         verification = self.memory.get_context("eur_verification") or {}
         refresh = self.memory.get_context("eur_refresh_result") or {}
@@ -1183,6 +1185,14 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
     # Required headings per mode. Modes whose prompt defines alternative output
     # layouts (full / partial / insufficient) list each layout separately.
     _REQUIRED_HEADING_LAYOUTS: dict[str, list[list[str]]] = {
+        "feedback_idea": [
+            [
+                "A. My understanding of your idea",
+                "B. Your next steps",
+                "C. Suggested reading",
+                "D. Data check",
+            ],
+        ],
         "feedback": [
             [
                 "A. Executive summary",
@@ -1257,16 +1267,15 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
             ],
         ],
         "feedback_final": [
-            [  # E (optional improvements) is conditional in the prompt, so not required
-                "A. Bottom-line verdict",
-                "B. Grading-matrix triage table",
-                "C. My understanding of the thesis",
-                "D. Minimum changes required to pass",
-                "F. Required checks on core thesis elements",
-                "G. Data and feasibility audit",
-                "H. Citation audit",
-                "I. Submission checklist",
-                "J. Clarifying questions",
+            [
+                "A. My understanding of the thesis",
+                "B. Recommended changes",
+                "C. Optional improvements",
+                "D. Checks on core thesis elements",
+                "E. Data and feasibility audit",
+                "F. Citation audit",
+                "G. Submission checklist",
+                "H. Clarifying questions",
             ],
         ],
         "grading": [
@@ -1323,10 +1332,23 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
                               "²³¹⁰⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉"
                               "≤≥≠≈∑∏∫∂∞±×÷√∈∉⊂⊃∪∩∅∀∃")
 
+    # Numbered-item caps per mode: (section heading, heading that ends it, maximum)
+    _ITEM_CAPS: dict[str, list[tuple[str, str, int]]] = {
+        "feedback_idea": [
+            ("B. Your next steps", "C. Suggested reading", 10),
+            ("C. Suggested reading", "D. Data check", 10),
+        ],
+    }
+
     def _check_formatting_issues(self, content: str) -> list[str]:
-        """Detect voice and math formatting violations in feedback output."""
+        """Detect voice, math formatting, and item-cap violations in feedback output."""
         if self.mode not in (
-            "feedback_hyp_rd", "feedback", "feedback_final", "feedback_results", "grading"
+            "feedback_idea",
+            "feedback_hyp_rd",
+            "feedback",
+            "feedback_final",
+            "feedback_results",
+            "grading",
         ):
             return []
 
@@ -1335,7 +1357,7 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
 
         # Check for third-person voice violations (outside of the labeling system).
         # Only modes whose prompts require second person; grading is written for the supervisor.
-        if self.mode in ("feedback_hyp_rd", "feedback", "feedback_final"):
+        if self.mode in ("feedback_idea", "feedback_hyp_rd", "feedback", "feedback_final"):
             voice_patterns = [
                 r"\bthe student\b", r"\bthe author\b",
                 r"\bthe student's\b", r"\bthe author's\b",
@@ -1383,6 +1405,23 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
                 f"the dollar signs (e.g. '{padded[0]}'). Write $\\beta$, not $ \\beta $."
             )
 
+        # Too many items: ask for a merged list, never cut the report.
+        lower = content.lower()
+        for heading, next_heading, cap in self._ITEM_CAPS.get(self.mode, []):
+            start = lower.find(heading.lower())
+            if start == -1:
+                continue
+            end = lower.find(next_heading.lower(), start)
+            section = content[start : end if end != -1 else len(content)]
+            # Top-level numbered lines ("1.", "**1.**", "### 1."); indented sub-points don't count
+            count = len(re.findall(r"^(?:#+\s*)?(?:\*\*)?\d+[.)](?:\*\*)?\s", section, flags=re.M))
+            if count > cap:
+                issues.append(
+                    f"Section '{heading}' has {count} numbered items; the maximum is {cap}. "
+                    "Merge related items or drop the least important ones, keep the ranking, "
+                    "and return the COMPLETE report with all other sections unchanged."
+                )
+
         return issues
 
     def _build_verification_request(self, issues: list[str]) -> str:
@@ -1407,7 +1446,7 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
         draft_context = self._build_draft_context()
         papers_context = self._build_reference_papers_context()
 
-        if self.mode in ("feedback", "feedback_final", "grading"):
+        if self.mode in ("feedback_idea", "feedback", "feedback_final", "grading"):
             self._ensure_feedback_data_verification()
             system_prompt += self._build_data_verification_context()
 
