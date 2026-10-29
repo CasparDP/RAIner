@@ -37,7 +37,7 @@ E. Data & Feasibility Audit (required)
 - E1. Data requirements table (unit, sample, timeframe, key variables, sources)
 - E2. Data availability check
   - Public sources (verified as public)
-  - Institution databases (VERIFIED via search_databases results)
+  - Institution databases (VERIFIED against the library's database list)
   - UNVERIFIED items + feasible alternatives
 - E3. Practical data acquisition plan (steps in order, what to download)
   F. Methods & identification feedback (what would convince a reader)

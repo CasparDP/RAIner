@@ -102,7 +102,9 @@ def test_student_feedback_rules_reach_student_facing_modes_only():
     from rainer.agent import ResearchAgent
     from rainer.config import Config
 
-    for mode in ResearchAgent.STUDENT_FACING_MODES:
+    expected = {"feedback_idea", "feedback", "feedback_hyp_rd", "feedback_results", "feedback_final"}
+    assert set(ResearchAgent.STUDENT_FACING_MODES) == expected
+    for mode in sorted(expected):
         prompt = ResearchAgent(mode=mode, config=Config())._build_prompt()
         assert prompt.count(ResearchAgent.STUDENT_FEEDBACK_RULES) == 1, mode
         assert "verdict" not in prompt.lower(), mode

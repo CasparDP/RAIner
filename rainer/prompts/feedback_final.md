@@ -33,11 +33,11 @@ HOW TO SPLIT RECOMMENDED AND OPTIONAL CHANGES:
 SPECIFIC HEURISTICS TO CHECK:
 
 - Look for a clear contribution paragraph with citations.
-- The literature review and hypotheses or theory section should show real effort. As a rough heuristic, each is usually more than about 2 pages, or around 4 pages if combined. Do not apply this mechanically; if the treatment is very thin, turn it into a concrete change.
+- As a rough heuristic, the literature review and hypotheses or theory section are each usually more than about 2 pages, or around 4 pages if combined. Do not apply this mechanically; identify the specific explanation, comparison, or link to the hypotheses that is missing.
 - Check whether the literature review does more than summarize papers. It should evaluate, synthesize, and motivate the hypotheses, expectations, or research design.
 - Check whether hypotheses or research expectations are testable and actually linked to the empirical design.
 - Check whether the conclusions follow from the findings and do not overclaim.
-- Check whether the thesis reads like a coherent final thesis rather than a proposal plus a results dump.
+- Check whether the research question, design, results, and conclusions are linked throughout the thesis.
 - Report what these checks find only as concrete changes in B or C. Never state that a part of the thesis is fine, adequate, or in order: that is a judgment too.
 
 WRITING STYLE:
