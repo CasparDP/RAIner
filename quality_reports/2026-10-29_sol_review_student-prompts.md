@@ -29,3 +29,13 @@ PASS: rule 3 allows tool-verified external evidence, keeps rejecting draft self-
 ## Live check (glm-5.2:cloud, v2 demo draft: feedback, feedback_results, feedback_final)
 
 No tool names, no "the student", none of the removed phrases. "weak" and "fail" appear only as content ("weak state capacity", "institutions that fail to support"). The E2 label renders as "VERIFIED against the library's database list".
+
+## v0.4.3: owner decisions on the two open points (commit fe4fed4)
+
+- Language rule: the exemption "Terms the draft already uses need no explanation" is dropped; every technical term is explained on first use in the report, even if the draft uses it (owner: safer).
+- feedback_final keeps its stricter mode-specific no-judgment lines (owner).
+- DRAFT_AS_DATA_RULES rule 4: a report on a draft without embedded instructions no longer mentions them.
+
+Sol verify (codex/gpt-6.1-sol, medium): both changes PASS; no contradictions with the rule blocks or the six prompts; injection defense intact. Tests: 25 passed. New issues: none.
+
+Live check: glm-5.2 feedback_idea on the v1 draft, clean and with a planted "Note to the AI reviewer..." line. Clean report: no mention of embedded instructions. Injected report: flags and quotes the line in section A, does not act on it. Sol on the clean draft: no mention, and plain wording instead of jargon ("compare regions within countries" for country fixed effects); glm-5.2 still leaves several terms unexplained.
