@@ -96,6 +96,7 @@ The DuckDB database (`articles.duckdb`) has three tables:
 - Tools: `search_papers`, `get_paper_details`, `format_citation`, `refresh_database_index`, `search_databases`
 - System prompts loaded via `prompts.py` per mode
 - Anti-hallucination rules: `CITATION_RULES` and `DATA_SOURCE_RULES`
+- `STUDENT_FEEDBACK_RULES`: the one shared place for voice ("you/your"), tone, plain language, report-only output, and the NO-JUDGMENT RULE (no pass/fail, grade, readiness to submit, or quality ratings; stage completeness is allowed). Added in `_build_prompt()` for `STUDENT_FACING_MODES` (the five `feedback*` modes), never for `grading`. Do not copy these rules into individual prompts
 - Database availability verification via `rainer/data/databases.json` (default reflects EUR; configurable via `data.databases_path` and `institution.name`)
 - Tracks citations via `CitationFormatter`
 - Runtime provider switching via `switch_provider()`
@@ -297,7 +298,7 @@ Update `databases.json` when database access changes. For EUR, check [EDSC news]
 
 ### Feedback Idea Mode Output Format
 
-The `feedback_idea` mode handles the earliest submission (typically one page, at most three) and aims the student at a draft ready for the general `feedback` stage. No judgment of the idea's quality (coach's call).
+The `feedback_idea` mode handles the earliest submission (typically one page, at most three) and aims the student at a draft ready for the general `feedback` stage. No judgment of the idea's quality (coach's call; shared NO-JUDGMENT RULE).
 
 ```
 A. My understanding of your idea (STATED / INFERRED / NOT FOUND)
@@ -310,14 +311,14 @@ D. Data check (light: 1-3 datasets, VERIFIED / UNVERIFIED / ASSUMED)
 
 ### Feedback Final Mode Output Format
 
-The `feedback_final` mode gives no verdict, grade, grading-matrix levels, or quality ratings (NO-JUDGMENT RULE): A. understanding; B. Recommended changes (max 7, on the RQ -> design -> results -> conclusions chain); C. Optional improvements (everything else); both grouped by low/medium/high effort. D-H: factual element checks, data audit, citation audit, submission checklist, clarifying questions.
+The `feedback_final` mode gives no verdict, grade, grading-matrix levels, or quality ratings (shared NO-JUDGMENT RULE, which applies to every student-facing mode): A. understanding; B. Recommended changes (max 7, on the RQ -> design -> results -> conclusions chain); C. Optional improvements (everything else); both grouped by low/medium/high effort. D-H: factual element checks, data audit, citation audit, submission checklist, clarifying questions.
 
 ### Feedback Mode Output Format
 
 In feedback mode (invoked via `/feedback` on a loaded draft), the agent produces a structured report:
 
 ```
-A. Executive summary (max 6 bullets; include feasibility verdict)
+A. Executive summary (max 6 bullets; first bullet: main data and feasibility finding)
 B. My understanding of your study (RQ, hypotheses, sample, variables, strategy)
 C. Strengths
 D. Biggest risks / threats to validity (ranked)
@@ -343,8 +344,8 @@ Uses SUBMISSION_FIDELITY rules (STATED / INFERRED / NOT FOUND labeling) to preve
 
 ```
 Full draft output:
-A. Executive summary (hypothesis–analysis alignment verdict)
-B. Hypothesis Map (per-hypothesis table: mechanism, direction, test, variables, verdict)
+A. Executive summary (leads with the most important hypothesis–test gap)
+B. Hypothesis Map (per-hypothesis table: mechanism, direction, test, variables, test match)
 C. Hypothesis–Analysis Alignment Audit (test mapping, DV/IV operationalization, confounds)
 D. Research Design Assessment (identification strategy, assumptions, alternatives)
 E. Data–Hypothesis Feasibility Check (lightweight)
@@ -375,7 +376,7 @@ Classifies submissions into three paths:
 
 ```
 Full draft output:
-A. Executive summary (results-design fidelity verdict; every bullet cites a specific section/table)
+A. Executive summary (leads with the most important results–design gap; every bullet cites a specific section/table)
 B. Results-Design Consistency Audit (per hypothesis: promised test vs. delivered test, sign alignment, interpretation)
 C. Specification Audit (FE, SE, controls, sample — flag silent deviations from methods description)
 D. Results Interpretation (are coefficients/tables read correctly?)

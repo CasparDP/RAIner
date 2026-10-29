@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "rainer"
-version = "0.3.0"
+version = "0.4.0"
 description = "RAiner - An open-source research assistant for academic work"
 readme = "README.md"
 license = "MIT"

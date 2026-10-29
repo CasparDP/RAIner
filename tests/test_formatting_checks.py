@@ -36,11 +36,18 @@ def test_accepts_clean_math_and_dollar_amounts(content):
     assert _check("feedback_results", content) == []
 
 
-def test_voice_check_skips_modes_without_second_person():
+def test_voice_check_covers_student_facing_modes_only():
     text = "The student uses $\\beta$."
     assert _check("grading", text) == []
-    assert _check("feedback_results", text) == []
-    assert any("Voice violation" in issue for issue in _check("feedback", text))
+    assert _check("review", text) == []
+    for mode in ResearchAgent.STUDENT_FACING_MODES:
+        assert any("Voice violation" in issue for issue in _check(mode, text)), mode
+
+
+def test_voice_check_ignores_cited_authors():
+    # Seen in live runs: phrases about cited papers triggered a needless full rewrite.
+    text = "I searched the author surname; check the author names of Griffin et al. (2021)."
+    assert _check("feedback", text) == []
 
 
 @pytest.mark.parametrize("api", ["chat", "responses"])

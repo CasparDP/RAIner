@@ -248,6 +248,44 @@ TIME ESTIMATE RULES - YOU MUST FOLLOW THESE:
 3. If the draft contains its own timeline, do not judge whether its durations are realistic
 """
 
+    # Modes whose report goes to the student. grading is supervisor-facing (third person, gives
+    # a grade) and must never get STUDENT_FEEDBACK_RULES.
+    STUDENT_FACING_MODES = (
+        "feedback_idea",
+        "feedback",
+        "feedback_hyp_rd",
+        "feedback_results",
+        "feedback_final",
+    )
+
+    # One shared place for voice, tone, language, and the no-judgment rule in student-facing
+    # reports. The grade is the supervisors' call; verdicts read as harsh to students.
+    STUDENT_FEEDBACK_RULES = """
+STUDENT FEEDBACK RULES - YOU MUST FOLLOW THESE (this report goes to the student):
+
+VOICE AND TONE:
+1. Address the student directly as "you" and "your" throughout. Never write "the student", "the author", or "they" for the person whose work you review. Write "You used a DiD design", not "The student used a DiD design".
+2. Keep the tone direct, calm, practical, and supportive.
+
+LANGUAGE:
+3. Write clearly and simply, with as little jargon as possible. Prefer a plain word when one does the job.
+4. If you need a technical term, explain it in plain words the first time you use it. Terms the draft already uses need no explanation.
+5. The labels STATED / INFERRED / NOT FOUND and VERIFIED / UNVERIFIED / ASSUMED stay as they are.
+
+NO-JUDGMENT RULE:
+6. The grade is decided by the supervisors, not by this report. Never state or imply:
+   - whether the work will pass or fail, or how likely either is,
+   - a grade, a grade band, or a level on any grading dimension (e.g. "satisfactory", "good", "excellent", "unsatisfactory"),
+   - whether the work is ready to submit,
+   - a quality rating of the idea, draft, thesis, or one of its chapters (e.g. "strong", "weak", "solid", "adequate", "acceptable", "thin", "promising", "worth pursuing", "below standard").
+7. Do not use the words "pass" or "fail" at all, also not for checks (write "does not meet the formatting guidelines" instead).
+8. Describe specific issues and specific fixes instead. If the report has a strengths section, name specific things the work does (e.g. "You cluster standard errors by firm, which fits your panel data"), not overall praise. If the student wants an assessment, they can ask their coach.
+9. You may say whether the submission covers what this feedback stage asks for (e.g. "Your submission has no hypotheses yet, so it does not yet cover what this stage asks for"). This is about which parts are present, not about their quality.
+
+OUTPUT:
+10. Output only the report itself. No notes about your process before or after it (e.g. "Now I have everything I need", a printed self-check, or offers of further help).
+"""
+
     # Reports are rendered to PDF via pandoc (Quarto in the CLI, pandoc -> Typst in Mattie),
     # whose math parser is strict about delimiters.
     MATH_RULES = r"""
@@ -867,6 +905,8 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
     def _build_prompt(self) -> str:
         """Build base system prompt with configurable templates and rules."""
         base = resolve_prompt(self.mode)
+        if self.mode in self.STUDENT_FACING_MODES:
+            base = base + "\n" + self.STUDENT_FEEDBACK_RULES
         data_rules = self.DATA_SOURCE_RULES_TEMPLATE.format(
             institution=self.config.institution.name
         )
@@ -1356,12 +1396,11 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
         import re
 
         # Check for third-person voice violations (outside of the labeling system).
-        # Only modes whose prompts require second person; grading is written for the supervisor.
-        if self.mode in ("feedback_idea", "feedback_hyp_rd", "feedback", "feedback_final"):
-            voice_patterns = [
-                r"\bthe student\b", r"\bthe author\b",
-                r"\bthe student's\b", r"\bthe author's\b",
-            ]
+        # Student-facing modes require second person; grading is written for the supervisor.
+        if self.mode in self.STUDENT_FACING_MODES:
+            # No "the author": reports use it for cited papers ("the author surname"), and each
+            # false hit costs a full rewrite of the report.
+            voice_patterns = [r"\bthe student\b", r"\bthe student's\b"]
             for pattern in voice_patterns:
                 matches = re.findall(pattern, content, re.IGNORECASE)
                 if matches:

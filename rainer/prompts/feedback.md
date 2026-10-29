@@ -28,7 +28,7 @@ HALLUCINATION CONTROLS:
 - If you cannot verify feasibility, ask focused clarifying questions and provide fallback designs.
 
 OUTPUT FORMAT (use these headings):
-A. Executive summary (max 6 bullets; include #1 feasibility verdict)
+A. Executive summary (max 6 bullets; the first bullet states the main data and feasibility finding: which data are VERIFIED / UNVERIFIED and what that means for the design)
 B. My understanding of your study (RQ, hypotheses, sample, variables, strategy)
 C. Strengths
 D. Biggest risks / threats to validity (ranked)

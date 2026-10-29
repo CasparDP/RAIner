@@ -88,9 +88,47 @@ def test_required_headings_appear_in_their_prompts():
 
 
 def test_final_feedback_gives_no_verdict():
-    from rainer.prompts import resolve_prompt
+    from rainer.agent import ResearchAgent
+    from rainer.config import Config
 
-    prompt = resolve_prompt("feedback_final")
+    prompt = ResearchAgent(mode="feedback_final", config=Config())._build_prompt()
     for phrase in ("PASS LIKELY", "BORDERLINE", "Bottom-line verdict", "Grading-matrix", "to pass"):
         assert phrase not in prompt
     assert "NO-JUDGMENT RULE" in prompt
+
+
+def test_student_feedback_rules_reach_student_facing_modes_only():
+    """Voice, language, and no-judgment rules live in one place and skip supervisor-facing grading."""
+    from rainer.agent import ResearchAgent
+    from rainer.config import Config
+
+    for mode in ResearchAgent.STUDENT_FACING_MODES:
+        prompt = ResearchAgent(mode=mode, config=Config())._build_prompt()
+        assert prompt.count(ResearchAgent.STUDENT_FEEDBACK_RULES) == 1, mode
+        assert "verdict" not in prompt.lower(), mode
+        # The rules live only in the shared block, not as copies in the prompt files.
+        for heading in ("VOICE RULE", "NO-JUDGMENT RULE"):
+            assert heading not in resolve_prompt(mode), (mode, heading)
+    for mode in ("grading", "review"):
+        prompt = ResearchAgent(mode=mode, config=Config())._build_prompt()
+        assert ResearchAgent.STUDENT_FEEDBACK_RULES not in prompt, mode
+
+
+def test_student_feedback_rules_survive_prompt_dir_override():
+    from pathlib import Path
+
+    from rainer.agent import ResearchAgent
+    from rainer.config import Config
+
+    original_config = get_config()
+    with TemporaryDirectory() as tmp_dir:
+        (Path(tmp_dir) / PROMPT_FILES["feedback"]).write_text("Custom feedback prompt.")
+        config = Config()
+        config.output.prompt_dir = tmp_dir
+        set_config(config)
+        try:
+            prompt = ResearchAgent(mode="feedback", config=config)._build_prompt()
+        finally:
+            set_config(original_config)
+    assert prompt.startswith("Custom feedback prompt.")
+    assert ResearchAgent.STUDENT_FEEDBACK_RULES in prompt

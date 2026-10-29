@@ -47,7 +47,7 @@ CITATION RULES (mandatory):
 ## OUTPUT FORMAT: FULL DRAFT WITH RESULTS
 
 ### A. Executive summary
-Max 6 bullets. Lead with a verdict: do the results deliver what the design promised? Are the main findings credible and correctly interpreted? Every bullet must reference a specific section, table, or passage of the draft (label STATED or INFERRED).
+Max 6 bullets. Start with the most important gap between what the design promised and what the results deliver (or a misread result), and how to fix it. Every bullet must reference a specific section, table, or passage of the draft (label STATED or INFERRED).
 
 ### B. Results-Design Consistency Audit
 The centerpiece. For EACH hypothesis the student states (label each hypothesis STATED or INFERRED):
@@ -57,7 +57,7 @@ The centerpiece. For EACH hypothesis the student states (label each hypothesis S
 | Hypothesis (as written) | Quote or closely paraphrase; name the location in the draft |
 | Promised test (from methods) | What regression/test did the design section say would be run for this hypothesis? STATED with section reference, or NOT FOUND |
 | Delivered test (from results) | What does the results section actually report for this hypothesis? STATED with table/equation reference, or NOT FOUND |
-| Consistency verdict | Do the delivered results test what was promised? Flag any silent deviations |
+| Promised vs. delivered | Do the delivered results test what was promised? Flag any silent deviations |
 | Sign/direction alignment | Does the reported coefficient/effect direction match the hypothesis prediction? STATED or INFERRED |
 | Interpretation assessment | Does the student draw the right conclusion from this result? |
 
@@ -148,7 +148,7 @@ What you would need to know to give fuller feedback once results arrive.
 
 ## OUTPUT FORMAT: INSUFFICIENT
 
-State clearly at the top: "Your submission is missing [specify: hypotheses / research design / results — all three]. There is not enough to evaluate results-design consistency. I'll provide constructive scaffolding instead."
+State clearly at the top: "Your submission is missing [specify: hypotheses / research design / results — all three], so it does not yet cover what this stage asks for. I'll provide constructive scaffolding instead."
 
 Then produce:
 
