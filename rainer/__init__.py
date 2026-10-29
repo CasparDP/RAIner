@@ -20,7 +20,7 @@ warnings.filterwarnings("ignore", message=".*capture.*takes.*positional argument
 logging.getLogger("chromadb.telemetry").setLevel(logging.CRITICAL)
 logging.getLogger("chromadb.telemetry.product.posthog").setLevel(logging.CRITICAL)
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 from .agent import ResearchAgent
 from .citations import CitationFormatter
