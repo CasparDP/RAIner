@@ -1414,7 +1414,7 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
             end = lower.find(next_heading.lower(), start)
             section = content[start : end if end != -1 else len(content)]
             # Top-level numbered lines ("1.", "**1.**", "### 1."); indented sub-points don't count
-            count = len(re.findall(r"^(?:#+\s*)?(?:\*\*)?\d+[.)]", section, flags=re.MULTILINE))
+            count = len(re.findall(r"^(?:#+\s*)?(?:\*\*)?\d+[.)](?:\*\*)?\s", section, flags=re.M))
             if count > cap:
                 issues.append(
                     f"Section '{heading}' has {count} numbered items; the maximum is {cap}. "

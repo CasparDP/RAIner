@@ -106,7 +106,9 @@ def test_complete_report_in_follow_up_is_not_duplicated(make_agent):
 
 
 def _idea_report(n_steps, n_papers=3):
-    steps = "\n".join(f"{i}. **Step {i}**\n   - why it matters" for i in range(1, n_steps + 1))
+    steps = "\n".join(
+        f"**{i}.** Step {i}\n   1. sub-point\n   2) sub-point\n1.5 million firms" for i in range(1, n_steps + 1)
+    )
     papers = "\n".join(f"{i}. Paper {i} (JAR)" for i in range(1, n_papers + 1))
     return (
         "## A. My understanding of your idea\n- Topic: STATED\n\n"

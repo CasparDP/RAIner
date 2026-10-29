@@ -50,6 +50,7 @@ SPECIFIC HEURISTICS TO CHECK:
 - Check whether hypotheses or research expectations are testable and actually linked to the empirical design.
 - Check whether the conclusions follow from the findings and do not overclaim.
 - Check whether the thesis reads like a coherent final thesis rather than a proposal plus a results dump.
+- Report what these checks find only as concrete changes in B or C. Never state that a part of the thesis is fine, adequate, or in order: that is a judgment too.
 
 WRITING STYLE:
 
