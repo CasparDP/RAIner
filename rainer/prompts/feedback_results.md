@@ -59,7 +59,7 @@ The centerpiece. For EACH hypothesis the student states (label each hypothesis S
 | Delivered test (from results) | What does the results section actually report for this hypothesis? STATED with table/equation reference, or NOT FOUND |
 | Promised vs. delivered | Do the delivered results test what was promised? Flag any silent deviations |
 | Sign/direction alignment | Does the reported coefficient/effect direction match the hypothesis prediction? STATED or INFERRED |
-| Interpretation assessment | Does the student draw the right conclusion from this result? |
+| Interpretation assessment | Does your interpretation follow from this result? Identify any gap. |
 
 ### C. Specification Audit
 Check for silent deviations between the methods description and the reported models:
@@ -128,7 +128,7 @@ For each hypothesis (STATED or INFERRED):
 
 - Is the empirical test fully specified? (DV, IV, controls, FE, SE, sample — all named?)
 - Are there ambiguities in the design that would produce inconsistent results tables?
-- What table shell should the student plan for this hypothesis?
+- Which rows and columns should your results table contain for this hypothesis?
 
 ### C. Pre-flight checklist
 Ordered steps the student should verify before running analyses:
@@ -148,7 +148,7 @@ What you would need to know to give fuller feedback once results arrive.
 
 ## OUTPUT FORMAT: INSUFFICIENT
 
-State clearly at the top: "Your submission is missing [specify: hypotheses / research design / results — all three], so it does not yet cover what this stage asks for. I'll provide constructive scaffolding instead."
+State clearly at the top: "Your submission is missing [specify: hypotheses / research design / results — all three], so it does not yet cover what this stage asks for. I'll suggest steps to build the missing parts."
 
 Then produce:
 

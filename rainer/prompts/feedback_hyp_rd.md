@@ -172,7 +172,7 @@ What you would need to know to refine these suggestions further.
 
 After completing the feedback report, you MUST run a self-verification pass. Review your own output and check for the following issues. If you find any, fix them inline — do not produce a separate verification section.
 
-1. **Voice**: Every sentence addressing the student uses "you/your", never "the student/the author/they".
+1. **Shared rules**: Check the report against the STUDENT FEEDBACK RULES (voice, plain language, no judgment, no tool names).
 2. **Math formatting**: Every Greek letter, equation, subscript, superscript, test statistic, and p-value is wrapped in LaTeX `$...$` or `$$...$$` per the MATH FORMATTING RULES (no spaces inside `$...$`, no `\( \)` or `\[ \]`, multi-letter names in `\text{}`). No bare Unicode math symbols anywhere.
 3. **STATED/INFERRED/NOT FOUND labeling**: Every factual claim about the submission carries one of the three labels. No unlabeled assertions.
 4. **Hallucination check**: Every cited paper was returned by a tool call. No invented references, DOIs, or journal names.
