@@ -53,3 +53,12 @@ def test_azure_client_retries_rate_limits(api):
     cfg.provider.azure_openai.api = api
     agent = ResearchAgent(mode="search", config=cfg)
     assert agent.client.max_retries == LLM_MAX_RETRIES == 8
+
+
+@pytest.mark.parametrize("provider", ["openai", "openrouter", "anthropic"])
+def test_other_clients_retry_rate_limits(provider):
+    cfg = Config()
+    cfg.provider.name = provider
+    getattr(cfg.provider, provider).api_key = "test-key"
+    agent = ResearchAgent(mode="search", config=cfg)
+    assert agent.client.max_retries == LLM_MAX_RETRIES
