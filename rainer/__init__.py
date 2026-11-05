@@ -20,20 +20,23 @@ warnings.filterwarnings("ignore", message=".*capture.*takes.*positional argument
 logging.getLogger("chromadb.telemetry").setLevel(logging.CRITICAL)
 logging.getLogger("chromadb.telemetry.product.posthog").setLevel(logging.CRITICAL)
 
-__version__ = "0.4.4"
+__version__ = "0.4.5"
 
 from .agent import ResearchAgent
 from .citations import CitationFormatter
 from .config import Config, get_config, load_config
-from .engine import FeedbackEngine, FeedbackResult
+from .engine import FeedbackEngine, FeedbackResult, IncompleteReportError
 from .memory import ConversationMemory, Session, SessionManager
 from .papers import Paper, PaperDB
+from .providers import IncompleteResponseError
 from .search import PaperSearch
 
 __all__ = [
     "ResearchAgent",
     "FeedbackEngine",
     "FeedbackResult",
+    "IncompleteReportError",
+    "IncompleteResponseError",
     "Config",
     "get_config",
     "load_config",

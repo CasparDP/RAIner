@@ -20,6 +20,11 @@ from google.genai import types as google_types
 from .config import get_config
 
 
+class IncompleteResponseError(RuntimeError):
+    """The provider stopped the answer early (output limit, content filter, or a failed
+    response). Raised instead of returning the cut-off text as if it were complete."""
+
+
 @dataclass
 class ToolCall:
     """Canonical tool call representation."""
@@ -59,6 +64,13 @@ class ProviderAdapter(ABC):
     ) -> dict[str, Any]:
         """Format a tool result message for this provider."""
 
+    def generate_final(
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
+    ) -> tuple[str, list[ToolCall] | None]:
+        """Generate an answer that must not call tools. Adapters whose API can forbid
+        tool calls override this; the default relies on the prompt alone."""
+        return self.generate(messages, tools)
+
 
 class OpenAIToolsMixin:
     """Converts tools to OpenAI-style JSON schema."""
@@ -94,6 +106,8 @@ class OllamaAdapter(ProviderAdapter, OpenAIToolsMixin):
             tools=self.get_openai_tools(tools),
             options=options,
         )
+        if response.get("done_reason") == "length":
+            raise IncompleteResponseError("answer stopped early (done_reason=length)")
         message = response["message"]
         content = message.get("content", "")
         tool_calls = message.get("tool_calls")
@@ -130,13 +144,34 @@ class OpenAIAdapter(ProviderAdapter, OpenAIToolsMixin):
     def generate(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> tuple[str, list[ToolCall] | None]:
+        return self._generate(messages, tools)
+
+    def generate_final(
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
+    ) -> tuple[str, list[ToolCall] | None]:
+        return self._generate(messages, tools, tool_choice="none")
+
+    def _generate(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        tool_choice: str | None = None,
+    ) -> tuple[str, list[ToolCall] | None]:
+        kwargs: dict[str, Any] = {}
+        if tool_choice:
+            kwargs["tool_choice"] = tool_choice
         response = self.client.chat.completions.create(
             model=self.model,
             messages=self._to_openai_messages(messages),
             tools=self.get_openai_tools(tools),
             temperature=self.temperature,
+            **kwargs,
         )
-        message = response.choices[0].message
+        choice = response.choices[0]
+        finish = getattr(choice, "finish_reason", None)
+        if finish in ("length", "content_filter"):
+            raise IncompleteResponseError(f"answer stopped early (finish_reason={finish})")
+        message = choice.message
         content = message.content or ""
         if not message.tool_calls:
             return content, None
@@ -211,14 +246,39 @@ class AzureResponsesAdapter(ProviderAdapter, OpenAIToolsMixin):
     def generate(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> tuple[str, list[ToolCall] | None]:
+        return self._generate(messages, tools)
+
+    def generate_final(
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
+    ) -> tuple[str, list[ToolCall] | None]:
+        return self._generate(messages, tools, tool_choice="none")
+
+    def _generate(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        tool_choice: str | None = None,
+    ) -> tuple[str, list[ToolCall] | None]:
         instructions, items = self._to_input_items(messages)
+        kwargs: dict[str, Any] = {}
+        if tool_choice:
+            kwargs["tool_choice"] = tool_choice
         response = self.client.responses.create(
             model=self.model,
             instructions=instructions or None,
             input=items,
             tools=self._to_response_tools(self.get_openai_tools(tools)),
             store=False,
+            **kwargs,
         )
+        # Check before parsing: a cut-off answer can end in half a tool call (broken JSON).
+        status = getattr(response, "status", None)
+        if status == "incomplete":
+            details = getattr(response, "incomplete_details", None)
+            reason = getattr(details, "reason", None) or "unknown"
+            raise IncompleteResponseError(f"answer stopped early (incomplete: {reason})")
+        if status == "failed":
+            raise IncompleteResponseError(f"response failed: {getattr(response, 'error', None)}")
         texts: list[str] = []
         calls: list[ToolCall] = []
         for item in response.output:
@@ -314,6 +374,19 @@ class AnthropicAdapter(ProviderAdapter):
     def generate(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> tuple[str, list[ToolCall] | None]:
+        return self._generate(messages, tools)
+
+    def generate_final(
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
+    ) -> tuple[str, list[ToolCall] | None]:
+        return self._generate(messages, tools, tool_choice={"type": "none"})
+
+    def _generate(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        tool_choice: dict[str, str] | None = None,
+    ) -> tuple[str, list[ToolCall] | None]:
         system_content = ""
         anthropic_messages = []
 
@@ -357,7 +430,10 @@ class AnthropicAdapter(ProviderAdapter):
             messages=anthropic_messages,
             tools=self._get_anthropic_tools(tools),
             temperature=self.temperature,
+            **({"tool_choice": tool_choice} if tool_choice else {}),
         )
+        if getattr(response, "stop_reason", None) == "max_tokens":
+            raise IncompleteResponseError("answer stopped early (stop_reason=max_tokens)")
 
         content = ""
         tool_calls: list[ToolCall] | None = None
@@ -448,6 +524,10 @@ class GoogleAdapter(ProviderAdapter):
         )
 
         response = chat.send_message(current_message.parts[0].text)
+        candidates = getattr(response, "candidates", None) or []
+        finish = getattr(candidates[0], "finish_reason", None) if candidates else None
+        if getattr(finish, "name", finish) == "MAX_TOKENS":
+            raise IncompleteResponseError("answer stopped early (finish_reason=MAX_TOKENS)")
         content = response.text if response.text else ""
         return content, None
 

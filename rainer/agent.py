@@ -1341,6 +1341,17 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
         ],
     }
 
+    def required_heading_gap(self, content: str) -> tuple[list[str], int]:
+        """Missing required headings for this mode and the size of the layout they come
+        from (the closest layout, as in `_get_missing_required_headings`); ([], 0) for a
+        mode without required headings."""
+        layouts = self._REQUIRED_HEADING_LAYOUTS.get(self.mode)
+        if not layouts:
+            return [], 0
+        lower = content.lower()
+        gaps = [([h for h in layout if h.lower() not in lower], len(layout)) for layout in layouts]
+        return min(gaps, key=lambda gap: len(gap[0]))
+
     def _get_missing_required_headings(self, content: str) -> list[str]:
         """Return missing required headings for feedback/review outputs.
 
@@ -1541,9 +1552,15 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
         format_follow_up_done = False
         # Report held back while the model is asked for only its missing sections
         report_before_follow_up = ""
+        last_round_called_tools = False
+        # Read by FeedbackEngine: steps used, and whether the run ended without an answer.
+        self.last_run_steps = 0
+        self.last_run_incomplete = False
 
         for _ in range(max_iterations):
+            self.last_run_steps += 1
             content, tool_calls = self.adapter.generate(messages, self.TOOLS)
+            last_round_called_tools = bool(tool_calls)
 
             if tool_calls:
                 tool_call_dicts = [
@@ -1612,10 +1629,31 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
         if report_before_follow_up:
             # Ran out of steps during the missing-sections follow-up; keep the original report
             content = report_before_follow_up
+        elif last_round_called_tools or not content:
+            # Ran out of steps mid-research: the last text is commentary next to a tool call,
+            # not a report. Ask once for the report with tool calls forbidden.
+            content = self._final_answer_without_tools(messages)
         if content:
             self.memory.add("assistant", content)
             return content
+        self.last_run_incomplete = True
         return "I wasn't able to complete the request within the allowed steps."
+
+    _FINAL_ANSWER_REQUEST = (
+        "You have used all available research steps. Do not call any more tools. Write the "
+        "complete final response now, with every required section, using only the evidence "
+        "gathered so far."
+    )
+
+    def _final_answer_without_tools(self, messages: list[dict[str, Any]]) -> str:
+        """One last call with tools forbidden; returns "" if it still yields no answer."""
+        messages.append({"role": "user", "content": self._FINAL_ANSWER_REQUEST})
+        self.last_run_steps += 1
+        final = getattr(self.adapter, "generate_final", self.adapter.generate)
+        content, tool_calls = final(messages, self.TOOLS)
+        if tool_calls or not content:
+            return ""
+        return content
 
     def _build_draft_summary(self, content: str) -> str:
         """Build a deterministic summary from key sections without LLM calls."""
