@@ -1458,8 +1458,9 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
                     "university library or Google Scholar instead."
                 )
 
-        # The engine's own name means nothing to students or supervisors.
-        if re.search(r"rainer", content, flags=re.IGNORECASE):
+        # The engine's own name means nothing to students or supervisors. Its spellings only, so a
+        # cited author called Rainer does not trigger it.
+        if re.search(r"\b(?:RAiner|RAINER)\b", content):
             issues.append(
                 "The report names 'RAiner'. Readers do not know this name. Write \"the paper "
                 "database\" instead (e.g. label a citation VERIFIED or NOT IN PAPER DATABASE "

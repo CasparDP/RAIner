@@ -89,3 +89,4 @@ def test_engine_name_flagged_in_student_and_grading_reports():
     assert not any("RAiner" in i for i in _check("review", text))
     clean = "Fama (1970) VERIFIED; Smith (2020) NOT IN PAPER DATABASE (MANUAL CHECK NEEDED)."
     assert _check("feedback", clean) == []
+    assert _check("feedback", "Rainer and Lenz (2019) VERIFIED.") == []
