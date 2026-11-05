@@ -84,6 +84,7 @@ def test_tool_names_flagged_in_student_reports_only():
 def test_engine_name_flagged_in_student_and_grading_reports():
     # The old citation labels named the engine ("VERIFIED IN RAINER").
     text = "Fama (1970) VERIFIED IN RAINER; Smith (2020) not found in RAiner."
+    assert _check("feedback", "I searched the rainer database.")
     for mode in (*ResearchAgent.STUDENT_FACING_MODES, "grading"):
         assert any("RAiner" in i for i in _check(mode, text)), mode
     assert not any("RAiner" in i for i in _check("review", text))
