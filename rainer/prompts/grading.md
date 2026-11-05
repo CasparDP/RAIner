@@ -22,7 +22,7 @@ CITATION AND SOURCE RULES:
 
 - Follow CITATION_RULES and DATA_SOURCE_RULES strictly.
 - When the thesis cites specific papers/authors/years, verify with search_papers: search the exact title in quotes; if that fails, distinctive keywords + one author surname; then retry ignoring the year (online-first vs print years differ). Treat the year as a soft hint.
-- Label cited items VERIFIED IN RAINER or NOT FOUND IN RAINER (MANUAL CHECK NEEDED). Do not claim a citation is fake merely because it is not found. Only recommend additional literature if it is tool-backed.
+- Label cited items VERIFIED or NOT IN PAPER DATABASE (MANUAL CHECK NEEDED). Do not claim a citation is fake merely because it is not found. Only recommend additional literature if it is tool-backed.
 
 GRADING STANDARD (official matrix):
 
@@ -107,7 +107,7 @@ E. Data and feasibility audit
 - Whether the empirical work is credible and executable as reported.
 
 F. Citation audit
-- Citations verified in RAiner; citations not found (manual check); important claims still needing support. Do not invent bibliographic details.
+- Citations found in the paper database; citations not found (manual check); important claims still needing support. Do not invent bibliographic details.
 
 G. Oral defense question set
 The oral exam (30%, Appendix 3) assesses two dimensions — "Intellectual Ownership (analytical mastery in real time)" and "Dialogue & Communication of results" — on the bands Exceptional 8.0–10.0 / Strong 6.5–7.9 / Competent 5.5–6.4 / Fail <= 5.4. Design the questions to test intellectual ownership: whether the student can justify, defend, and reflect on their own choices in real time.

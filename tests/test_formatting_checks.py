@@ -79,3 +79,15 @@ def test_tool_names_flagged_in_student_reports_only():
         assert issues and "lookup_paper" in issues[0] and "search_databases" in issues[0], mode
     assert not any(i.startswith("Tool names") for i in _check("grading", text))
     assert _check("feedback", "I searched the paper database and the library's list.") == []
+
+
+def test_engine_name_flagged_in_student_and_grading_reports():
+    # The old citation labels named the engine ("VERIFIED IN RAINER").
+    text = "Fama (1970) VERIFIED IN RAINER; Smith (2020) not found in RAiner."
+    assert _check("feedback", "I searched the rainer database.")
+    for mode in (*ResearchAgent.STUDENT_FACING_MODES, "grading"):
+        assert any("RAiner" in i for i in _check(mode, text)), mode
+    assert not any("RAiner" in i for i in _check("review", text))
+    clean = "Fama (1970) VERIFIED; Smith (2020) NOT IN PAPER DATABASE (MANUAL CHECK NEEDED)."
+    assert _check("feedback", clean) == []
+    assert _check("feedback", "Rainer and Lenz (2019) VERIFIED.") == []

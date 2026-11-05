@@ -1458,6 +1458,15 @@ CRITICAL RULES FOR THE STUDENT DRAFT - YOU MUST FOLLOW THESE:
                     "university library or Google Scholar instead."
                 )
 
+        # The engine's own name means nothing to students or supervisors. Its spellings only (not
+        # "Rainer"), so a cited author called Rainer does not trigger it.
+        if re.search(r"\b(?:RAiner|RAINER|rainer)\b", content):
+            issues.append(
+                "The report names 'RAiner'. Readers do not know this name. Write \"the paper "
+                "database\" instead (e.g. label a citation VERIFIED or NOT IN PAPER DATABASE "
+                "(MANUAL CHECK NEEDED))."
+            )
+
         # Too many items: ask for a merged list, never cut the report.
         lower = content.lower()
         for heading, next_heading, cap in self._ITEM_CAPS.get(self.mode, []):
