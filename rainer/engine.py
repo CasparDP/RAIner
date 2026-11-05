@@ -27,6 +27,12 @@ from .config import Config
 DEFAULT_PROMPT = "Please review the loaded draft and produce your full structured report."
 
 
+class IncompleteReportError(RuntimeError):
+    """The run produced no usable report: it ran out of steps without an answer, came back
+    empty, or lacks most of the mode's required sections. Raised so a service can retry or
+    fail the job instead of publishing it."""
+
+
 @dataclass
 class FeedbackResult:
     """Outcome of a single feedback run."""
@@ -69,6 +75,22 @@ class FeedbackEngine:
 
         report = agent.chat(user_prompt)
 
+        missing, required = agent.required_heading_gap(report)
+        run_info = {
+            "steps": getattr(agent, "last_run_steps", None),
+            "missing_headings": missing,
+        }
+        # Fail only on gross incompleteness: the heading check is a substring match, so a
+        # single reworded heading must not throw away an otherwise good (and costly) report.
+        if getattr(agent, "last_run_incomplete", False):
+            raise IncompleteReportError(f"no report within the step budget ({run_info})")
+        if not report.strip():
+            raise IncompleteReportError(f"empty report ({run_info})")
+        if required and len(missing) * 2 > required:
+            raise IncompleteReportError(
+                f"report lacks {len(missing)} of {required} required sections ({run_info})"
+            )
+
         return FeedbackResult(
             report_markdown=report,
             references=agent.get_references(),
@@ -76,4 +98,5 @@ class FeedbackEngine:
             provider=agent.provider_type,
             model=agent.model,
             mode=mode,
+            metadata=run_info,
         )
