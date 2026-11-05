@@ -192,3 +192,54 @@ def test_responses_adapter_final_call_forbids_tools():
     assert sent["tool_choice"] == "none"
     adapter.generate([{"role": "user", "content": "hi"}], [])
     assert "tool_choice" not in sent
+
+
+def test_exhaustion_during_missing_sections_follow_up_keeps_the_report(monkeypatch):
+    class _FollowUpThenSearch(_ScriptedAdapter):
+        def generate(self, messages, tools):
+            self.steps += 1
+            if self.steps == 1:
+                return ("Section 1\nfine\n\nSection 2\nfine", None)  # asks for Section 3
+            return ("Searching once more.", self._tool_call())
+
+    adapter = _FollowUpThenSearch(final_answer="should not be used")
+    _use(monkeypatch, adapter)
+    result = _run()
+    assert adapter.final_calls == 0
+    assert result.report_markdown == "Section 1\nfine\n\nSection 2\nfine"
+    assert result.metadata["missing_headings"] == ["Section 3"]
+
+
+def test_cut_off_answer_mid_run_surfaces_from_the_engine(monkeypatch):
+    class _CutOff(_ReportAdapter):
+        def generate(self, messages, tools):
+            raise IncompleteResponseError("answer stopped early (incomplete: max_output_tokens)")
+
+    _use(monkeypatch, _CutOff(""))
+    with pytest.raises(IncompleteResponseError):
+        _run()
+
+
+def test_anthropic_adapter_raises_on_max_tokens_and_final_forbids_tools():
+    sent = {}
+
+    def create(**kwargs):
+        sent.clear()
+        sent.update(kwargs)
+        return _NS(stop_reason=sent.pop("_stop", "max_tokens"), content=[])
+
+    adapter = create_provider_adapter("anthropic", "m", client=_NS(messages=_NS(create=create)))
+    with pytest.raises(IncompleteResponseError, match="max_tokens"):
+        adapter.generate([{"role": "user", "content": "hi"}], [])
+    with pytest.raises(IncompleteResponseError):
+        adapter.generate_final([{"role": "user", "content": "hi"}], [])
+    assert sent["tool_choice"] == {"type": "none"}
+
+
+def test_ollama_adapter_raises_on_length():
+    def chat(**kwargs):
+        return {"message": {"content": "partial"}, "done_reason": "length"}
+
+    adapter = create_provider_adapter("ollama", "m", client=_NS(chat=chat))
+    with pytest.raises(IncompleteResponseError, match="length"):
+        adapter.generate([{"role": "user", "content": "hi"}], [])

@@ -28,6 +28,7 @@ from .config import Config, get_config, load_config
 from .engine import FeedbackEngine, FeedbackResult, IncompleteReportError
 from .memory import ConversationMemory, Session, SessionManager
 from .papers import Paper, PaperDB
+from .providers import IncompleteResponseError
 from .search import PaperSearch
 
 __all__ = [
@@ -35,6 +36,7 @@ __all__ = [
     "FeedbackEngine",
     "FeedbackResult",
     "IncompleteReportError",
+    "IncompleteResponseError",
     "Config",
     "get_config",
     "load_config",

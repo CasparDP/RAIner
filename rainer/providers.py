@@ -106,6 +106,8 @@ class OllamaAdapter(ProviderAdapter, OpenAIToolsMixin):
             tools=self.get_openai_tools(tools),
             options=options,
         )
+        if response.get("done_reason") == "length":
+            raise IncompleteResponseError("answer stopped early (done_reason=length)")
         message = response["message"]
         content = message.get("content", "")
         tool_calls = message.get("tool_calls")
@@ -372,6 +374,19 @@ class AnthropicAdapter(ProviderAdapter):
     def generate(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> tuple[str, list[ToolCall] | None]:
+        return self._generate(messages, tools)
+
+    def generate_final(
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
+    ) -> tuple[str, list[ToolCall] | None]:
+        return self._generate(messages, tools, tool_choice={"type": "none"})
+
+    def _generate(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        tool_choice: dict[str, str] | None = None,
+    ) -> tuple[str, list[ToolCall] | None]:
         system_content = ""
         anthropic_messages = []
 
@@ -415,7 +430,10 @@ class AnthropicAdapter(ProviderAdapter):
             messages=anthropic_messages,
             tools=self._get_anthropic_tools(tools),
             temperature=self.temperature,
+            **({"tool_choice": tool_choice} if tool_choice else {}),
         )
+        if getattr(response, "stop_reason", None) == "max_tokens":
+            raise IncompleteResponseError("answer stopped early (stop_reason=max_tokens)")
 
         content = ""
         tool_calls: list[ToolCall] | None = None
@@ -506,6 +524,10 @@ class GoogleAdapter(ProviderAdapter):
         )
 
         response = chat.send_message(current_message.parts[0].text)
+        candidates = getattr(response, "candidates", None) or []
+        finish = getattr(candidates[0], "finish_reason", None) if candidates else None
+        if getattr(finish, "name", finish) == "MAX_TOKENS":
+            raise IncompleteResponseError("answer stopped early (finish_reason=MAX_TOKENS)")
         content = response.text if response.text else ""
         return content, None
 
